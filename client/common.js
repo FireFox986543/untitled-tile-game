@@ -34,7 +34,7 @@ class Vector2 {
         return mag === 0 ? Vector2.zero : a.divide(mag);
     }
 
-    toString() { return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)})`;}
+    toString() { return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)})`; }
 }
 class Size {
     static zero = new Size(0, 0);
@@ -186,12 +186,13 @@ function renderBackground() {
     // Render backgrounds, No explaining,
     // Just to know, didn't take that long, hehe ;)
     // Just a handful of hours to figure it out on my own — I already did this on another project
-    const renderSize = 1024;
-    const sourceSize = 256
+    const renderSize = 96;
+    const sourceSize = 256; // The size of a SINGLE tile in the image map
+    const sourceTiling = 1; // How many times the source image is repeated in each direction, so for example if it's 4, then the atlas is a 4x4 grid of 16 tiles
     let startX = viewport.viewLeft - revTranslateX(viewport.viewLeft) % renderSize;
     let cellX = Math.floor(revTranslateX(viewport.viewLeft) / renderSize);
     let startY = viewport.viewTop - revTranslateY(viewport.viewTop) % renderSize;
-    let cellY = Math.floor(revTranslateY(viewport.viewTop) / renderSize);
+    let cellY = -Math.floor(revTranslateY(viewport.viewTop) / renderSize);
     if (scene.scrollX <= viewport.visibleWidth2)
         startX -= renderSize;
     if (scene.scrollY <= viewport.visibleHeight2)
@@ -208,14 +209,28 @@ function renderBackground() {
 
     for (let y = 0; y < amountY; y++) {
         for (let x = 0; x < amountX; x++) {
+            const tileX = cellX + x;
+            const tileY = cellY - y;
+
+            const tileID = scene.getTileAt(tileX, tileY);
+            const tileThis = tileIDToClip(tileID);
+
+            // Ooops, we are in air!
+            if(tileID === 0)
+                continue;
+
             const drawX = Math.ceil(startX + renderSize * x);
             const drawY = Math.ceil(startY + renderSize * y);
-            const tileX = ((cellX + x) % 4 + 4) % 4;
-            const tileY = ((cellY + y) % 4 + 4) % 4;
-            ctx.drawImage(images['grid'], tileX * sourceSize, tileY * sourceSize, sourceSize, sourceSize, drawX, drawY, renderSize + 1, renderSize + 1); // Overdraw just 1 px to fix stitching issues, it's gone now
-            //ctx.fillText(cellX + x, drawX, startY + renderSize * (y + .5));
+            ctx.drawImage(images['tileAtlas'], tileThis.x, tileThis.y, tileThis.width, tileThis.height, drawX, drawY, renderSize + 1, renderSize + 1); // Overdraw just 1 px to fix stitching issues, it's gone now
+            ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));
         }
     }
+}
+function tileIDToClip(x) {
+    const column = x % 16;
+    const row = Math.floor(x / 16);
+
+    return new Rect(Math.floor(column * 16), Math.floor(row * 16), Math.floor(16), Math.floor(16));
 }
 
 function animationNow() { return performance.now() / 1000; }

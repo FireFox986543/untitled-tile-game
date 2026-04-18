@@ -72,14 +72,9 @@ function resizeCanvas() {
 }
 async function requestImages() {
     const paths = {
-        'player': 'src/pixelPlayer.png',
-        'chainsaw': 'src/pixelChainsaw.png',
-        'pointer1': 'src/pointer1.png',
-        'pointer2': 'src/pointer2.png',
-        'ornament1': 'src/ornament.png',
-        'ornament2': 'src/ornamentDark.png',
+        'tileAtlas': 'src/tileAtlas.png',
         'ui_atlas': 'src/ui_atlas.png',
-        'grid': 'src/bg1.png',
+        'grid': 'src/grid.png',
     }
     let loaded = 0;
 
