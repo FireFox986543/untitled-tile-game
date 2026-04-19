@@ -26,7 +26,7 @@ class MenuScene extends Scene {
         // Clear, Render background
         clearBuffer('white');
         ctx.save();
-        
+
         if (animationNow() <= this.#sceneStart + this.#fadeDuration) {
             const scale = interpolateEaseOut(Math.min(1, (animationNow() - this.#sceneStart) / this.#fadeDuration), 4);
             ctx.beginPath();
@@ -44,22 +44,22 @@ class MenuScene extends Scene {
         // At later points the scene changes will be covered with the circleing animation
         globalAlpha = interpolateEaseOut(Math.min(1, (animationNow()) / .5), 4);
         ctx.globalAlpha = scaleAlpha(1);
-        
+
         // Draw "background", so this way loading animations still work
-        clearBuffer('lightblue');
+        clearBuffer('#59b2ed');
 
         ctx.font = '256px "Jersey 10"';
-        ctx.fillStyle = '#de291f';
+        ctx.fillStyle = '#434343';
         ctx.strokeStyle = 'white';
         ctx.lineJoin = "square";
         ctx.lineCap = "square";
         ctx.miterLimit = 2;
         ctx.lineWidth = 48;
         ctx.textAlign = 'center';
-        outlinedText(VIRTUAL_WIDTH / 2, 200, 0, 8, '2D MEINKRAFT');
+        outlinedText(VIRTUAL_WIDTH / 2, 200, 0, 8, 'MEINKRAFT');
 
         renderUIElements(dt);
-        
+
         ctx.restore();
     }
 

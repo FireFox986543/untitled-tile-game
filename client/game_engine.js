@@ -14,6 +14,7 @@ let globalAlpha = 1;
 
 const VIRTUAL_WIDTH = 1920;
 const VIRTUAL_HEIGHT = 1080;
+const oneTileScreenSize = 96;
 const viewport = {
     rect: undefined,
     scale: 1,
@@ -75,6 +76,7 @@ async function requestImages() {
         'tileAtlas': 'src/tileAtlas.png',
         'ui_atlas': 'src/ui_atlas.png',
         'grid': 'src/grid.png',
+        'player': 'src/player.png'
     }
     let loaded = 0;
 
@@ -162,14 +164,17 @@ function unloadScene() {
 function lerp(a, b, t) { return a + (b - a) * t; }
 function interpolateEaseIn(t, s) { return 1 - Math.pow(1 - t, s); }
 function interpolateEaseOut(t, s) { return Math.pow(t, s); }
+// Translate coordinates to tile ones
+function toTileCoords(x) { return x / oneTileScreenSize; }
+function fromTileCoords(x) { return x * oneTileScreenSize; }
 // Translate world space -> screen space
 function translatePoint(p) { return new Vector2(translateX(p.x), translateY(p.y)); }
-function translateX(x = 0) { return x - scene.scrollX + VIRTUAL_WIDTH / 2; }
-function translateY(y = 0) { return y - scene.scrollY + VIRTUAL_HEIGHT / 2; }
+function translateX(x = 0) { return fromTileCoords(x - scene.scrollX) + VIRTUAL_WIDTH / 2; }
+function translateY(y = 0) { return fromTileCoords(-y + scene.scrollY) + VIRTUAL_HEIGHT / 2; }
 // Translate screen space -> world space
 function revTranslatePoint(p) { return new Vector2(revTranslateX(p.x), revTranslateY(p.y)); }
-function revTranslateX(x = 0) { return x + scene.scrollX - VIRTUAL_WIDTH / 2; }
-function revTranslateY(y = 0) { return y + scene.scrollY - VIRTUAL_HEIGHT / 2; }
+function revTranslateX(x = 0) { return toTileCoords(x) + scene.scrollX - toTileCoords(VIRTUAL_WIDTH / 2); }
+function revTranslateY(y = 0) { return -(toTileCoords(y) - scene.scrollY - toTileCoords(VIRTUAL_HEIGHT / 2)); }
 function deg2rad(d) { return Math.PI / 180 * d; }
 function rad2deg(r) { return 180 / Math.PI * r; }
 function AABB(rectA, rectB) { return (rectA.x < rectB.x + rectB.width && rectA.x + rectA.width > rectB.x) && (rectA.y < rectB.y + rectB.height && rectA.y + rectA.height > rectB.y); }
@@ -252,5 +257,77 @@ function renderUIElements() {
     ctx.strokeStyle = strokeStyle;
     ctx.textBaseline = textBaseline;
 }
+
+
+function renderBackground() {
+    // Render backgrounds, No explaining,
+    // Just to know, didn't take that long, hehe ;)
+    // Just a handful of hours to figure it out on my own — I already did this on another project
+    const renderSize = oneTileScreenSize;
+    const sourceSize = 256; // The size of a SINGLE tile in the image map
+    const sourceTiling = 1; // How many times the source image is repeated in each direction, so for example if it's 4, then the atlas is a 4x4 grid of 16 tiles
+    let startX = viewport.viewLeft - revTranslateX(viewport.viewLeft) * renderSize % renderSize;
+    let startY = viewport.viewTop + revTranslateY(viewport.viewTop) * renderSize % renderSize - renderSize;
+    let cellX = Math.floor(revTranslateX(viewport.viewLeft));
+    let cellY = Math.floor(revTranslateY(viewport.viewTop));
+
+    /*if(cellX < 0)
+        cellX++;
+    if(cellY < 0)
+        cellY++;*/
+
+    if (scene.scrollX <= toTileCoords(viewport.visibleWidth2))
+        startX -= renderSize;
+    if (scene.scrollY <= -toTileCoords(viewport.visibleHeight2))
+        startY += renderSize;
+
+    const visibleFirstX = renderSize - (viewport.viewLeft - startX);
+    const amountX = Math.ceil((viewport.visibleWidth - visibleFirstX) / renderSize) + 1;
+    const visibleFirstY = renderSize - (viewport.viewTop - startY);
+    const amountY = Math.ceil((viewport.visibleHeight - visibleFirstY) / renderSize) + 1;
+
+    ctx.font = '24px "Jersey 10"';
+    ctx.fillStyle = 'black';
+    ctx.globalAlpha = 1; // Note, we don't care about the scaled alpha, as the background must be opaque!!!
+
+    for (let y = 0; y < amountY; y++) {
+        for (let x = 0; x < amountX; x++) {
+            const tileX = cellX + x;
+            const tileY = cellY - y;
+
+            const tileID = scene.getTileAt(tileX, tileY);
+            const tileThis = tileIDToClip(tileID);
+
+            // Ooops, we are in air!
+            if (tileID === 0)
+                continue;
+
+            const drawX = Math.ceil(startX + renderSize * x);
+            const drawY = Math.ceil(startY + renderSize * y);
+            ctx.drawImage(images['tileAtlas'], Math.floor(tileThis.x) + 0.1, Math.floor(tileThis.y) + 0.1, Math.floor(tileThis.width) - 0.2, Math.floor(tileThis.height) - 0.2, Math.floor(drawX), Math.floor(drawY), Math.floor(renderSize + 1), Math.floor(renderSize + 1)); // Overdraw just 1 px to fix stitching issues, it's gone now
+            /*ctx.fillStyle = 'white';
+            ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));*/
+        }
+    }
+
+    /*ctx.fillStyle = 'red';
+    ctx.fillText(`START ${startX}   ${startY}`, 700, 500);
+    ctx.fillText(`CELL  ${cellX}   ${cellY}`, 700, 550);
+    ctx.fillText(`DRAWN ${amountX}   ${amountY}`, 700, 600);*/
+}
+function tileIDToClip(x) {
+    // Air doesn't get a place in the altas! How dare you?
+    if (x === 0)
+        return Rect.identity;
+    else
+        x--;
+
+    const column = x % 16;
+    const row = Math.floor(x / 16);
+
+    return new Rect(Math.floor(column * 16), Math.floor(row * 16), Math.floor(16), Math.floor(16));
+}
+
+function animationNow() { return performance.now() / 1000; }
 
 function scaleAlpha(alpha) { return alpha * globalAlpha; }

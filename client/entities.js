@@ -4,8 +4,11 @@ class Entity {
         this.size = size;
     }
 
-    get screenX() { return translateX(this.position.x - this.size.width / 2); }
-    get screenY() { return translateY(this.position.y - this.size.height / 2); }
+    // Note: sizes are in screen pixels, whereas the translate methods expect tile coords
+    get screenX() { return translateX(this.position.x) - this.screenSize.width / 2; }
+    get screenY() { return translateY(this.position.y) - this.screenSize.height / 2; }
+
+    get screenSize() { return new Size(fromTileCoords(this.size.width), fromTileCoords(this.size.height)); }
 
     update(dt) { }
     render(dt, images) { }
@@ -16,182 +19,144 @@ class Entity {
 }
 
 class PlayerEntity extends Entity {
-    static #deathFadeStart = 0;
-    static highscores = [];
 
     constructor(position, size, speed) {
         super(position, size);
         this.speed = speed;
         this.horizontal = 0;
-        this.vertical = 0;
-        this.maxLives = scene.difficulty.playerMaxLives;
-        this.lives = this.maxLives;
-        this.highScore = 0;
-        this.score = 0;
-        this.dead = false;
-        this.deathAStart = 0;
-        this.deathAEnd = 0;
-        this.immune = 0;
-        this.immuneDuration = scene.difficulty.playerImmuneDuration;
+        this.lastHorizontal = 0;
+        this.velocity = new Vector2(0, 0);
+        this.onGround = false;
+
+        this.collision = {
+            points: [
+                new Vector2(-this.size.width / 2, this.size.height / 2),
+                new Vector2(this.size.width / 2, this.size.height / 2),
+                new Vector2(-this.size.width / 2, 0),
+                new Vector2(this.size.width / 2, 0),
+                new Vector2(-this.size.width / 2, -this.size.height / 2),
+                new Vector2(this.size.width / 2, -this.size.height / 2),
+            ],
+            stepSolverResolution: 20,
+        };
+        this.collision.northPoints = [this.collision.points[0], this.collision.points[1]];
+        this.collision.eastPoints = [this.collision.points[1], this.collision.points[3], this.collision.points[5]];
+        this.collision.southPoints = [this.collision.points[4], this.collision.points[5]];
+        this.collision.westPoints = [this.collision.points[0], this.collision.points[2], this.collision.points[4]];
     }
 
-    get isImmune() { return this.immune > 0; }
-
-    syncInput(h, v) {
+    syncInput(h) {
+        this.lastHorizontal = this.horizontal;
         this.horizontal = h;
-        this.vertical = v;
     }
     update(dt) {
-        this.immune = Math.max(0, this.immune - dt);
-        let speed = this.speed;
+        // Handle gravity
+        if (this.onGround) {
+            if (getKeyDown(KeyCode.KeySpace) || getKeyDown(KeyCode.KeyW))
+                this.velocity.y = 6.8;
+            else
+                // Push the player just a touch bit down to make sure the contact with the ground is maintained
+                this.velocity.y = -0.1;
+        }
+        else
+            this.velocity.y += World.gravity * dt;
 
-        if (this.isImmune && !this.dead)
-            speed *= Math.pow(this.immune / this.immuneDuration, 3) + 1;
+        // We've went inside the ground, so push the player to the top
+        if (this.position.y < this.groundY)
+            this.position.y = this.groundY;
 
-        this.position.x += this.horizontal * speed * dt;
-        this.position.y -= this.vertical * speed * dt;
+        // Move the player along the x axis based on the velocities
+        // If we've stopped or changed directions
+        if (this.lastHorizontal !== this.horizontal) {
+            this.lastHorizontal = this.horizontal;
+            this.velocity.x = 0;
+        }
+        else
+            this.velocity.x = Math.max(Math.min(this.velocity.x + this.horizontal * dt * this.speed, this.speed), -this.speed)
+
+        //this.position = this.position.add(this.velocity.multiply(dt));
+
+        if (Math.abs(this.velocity.y) > 0.01) {
+            // The tryToMove function returns if we've hit a collider
+            // And by this way we could determine if we're grounded by checking if we moved down did we hit anything? 
+            let hitCollider = this.tryToMove(this.velocity.y > 0 ? DIRECTION.NORTH : DIRECTION.SOUTH, Math.abs(this.velocity.y) * dt);
+            this.onGround = this.velocity.y < 0 && hitCollider;
+            
+            // If we hit the ceiling, give the player a little "headbump" ;D
+            if(hitCollider && this.velocity.y > 0)
+                this.velocity.y = -1;
+        }
+        if (Math.abs(this.velocity.x) > 0.01)
+            this.tryToMove(this.velocity.x > 0 ? DIRECTION.EAST : DIRECTION.WEST, Math.abs(this.velocity.x) * dt);
     }
     render(dt, images) {
-        if (!this.dead && this.isImmune && fraction(this.immune * 4) > .5)
-            ctx.globalAlpha = scaleAlpha(.3);
-        if (this.dead) {
-            const t = Math.min(1, (animationNow() - PlayerEntity.#deathFadeStart) / (this.deathAEnd - PlayerEntity.#deathFadeStart));
-            ctx.globalAlpha = scaleAlpha(Math.pow(1 - t, 4));
-        }
-
-        ctx.drawImage(images['player'], this.screenX, this.screenY, this.size.width, this.size.height);
-        ctx.globalAlpha = scaleAlpha(1);
+        ctx.drawImage(images['player'], this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
 
         if (!scene.DEBUG) return;
         let screenPosition = translatePoint(this.position);
         fillCircle(screenPosition.x, screenPosition.y, 3, 'pink');
-        ctx.fillStyle = 'red';
-        ctx.font = "24px Arial";
-        ctx.fillText(this.immune.toFixed(2), screenPosition.x + 120, screenPosition.y);
     }
+
+    tryToMove(dir, amount) {
+        let pointsNew = null;
+        let vector = null;
+
+        switch (dir) {
+            case DIRECTION.NORTH:
+                pointsNew = this.collision.northPoints;
+                vector = new Vector2(0, 1);
+                break;
+            case DIRECTION.EAST:
+                pointsNew = this.collision.eastPoints;
+                vector = new Vector2(1, 0);
+                break;
+            case DIRECTION.SOUTH:
+                pointsNew = this.collision.southPoints;
+                vector = new Vector2(0, -1);
+                break;
+            case DIRECTION.WEST:
+                pointsNew = this.collision.westPoints;
+                vector = new Vector2(-1, 0);
+                break;
+        }
+
+        if (pointsNew == null)
+            throw new Error("Unable to determine direction from 'dir' parameter!", dir);
+
+        let pos = this.position.add(vector.multiply(amount));
+        let hitAnything = false;
+
+        // We hit a collider
+        if (this.collided(pointsNew, pos)) {
+            hitAnything = true;
+            const oneUnit = 1 / this.collision.stepSolverResolution;
+            pos = this.position;
+
+            for (let step = 0; step < this.collision.stepSolverResolution; step++) {
+                let testPos = pos.add(vector.multiply(amount * oneUnit));
+
+                // Here we've hit the wall/ceiling/floor
+                if (this.collided(pointsNew, testPos))
+                    break;
+
+                pos = testPos;
+            }
+        }
+
+        this.position = pos;
+        return hitAnything;
+    }
+    checkForCollision(point) { return scene.getTileAt(Math.floor(point.x), Math.floor(point.y)) !== 0; }
+    collided(points, origin) {
+        let collided = false;
+
+        points.forEach(p => {
+            if (this.checkForCollision(origin.add(p)))
+                collided = true;
+        });
+
+        return collided;
+    }
+
     destroy() { console.error("Sorry, you can't destroy the player!"); }
-
-    hurt() {
-        if (this.isImmune) return;
-
-        this.lives--;
-
-        if (this.lives <= 0)
-            this.die();
-        else
-            this.immune = this.immuneDuration; // Immunity for 3 seconds
-    }
-    die() {
-        if (this.isImmune) return;
-
-        this.highScore = Math.max(this.highScore, this.score);
-        PlayerEntity.highscores[scene.difficultyLevel] = this.highScore;
-        this.dead = true;
-        this.immune = 1 / 0;
-        this.deathAStart = animationNow() + 1.5;
-        this.deathAEnd = this.deathAStart + 1;
-        PlayerEntity.#deathFadeStart = animationNow() + .25;
-
-        scene.playerDied();
-    }
-}
-
-class ChainsawEnemy extends Entity {
-    static #impulseDampen = -5;
-    static #collisionImpulse = 75;
-
-    static #removalDistance = 5000 * 5000; // Note: squared
-
-    #animOffset;
-
-    constructor(position, size) {
-        super(position, size);
-        this.rotation = 0;
-        this.impulse = new Vector2(0, 0);
-        this.playerDistance = 0;
-        this.#animOffset = Math.random();
-    }
-
-    static staticUpdate() {
-        if (scene.gameTime >= scene.difficulty.enemyNextSpeedIncrease) {
-            scene.difficulty.enemyStartSpeed = Math.min(scene.difficulty.enemyMaxSpeed, scene.difficulty.enemyStartSpeed + scene.difficulty.enemySpeedIncrementAmount);
-            scene.difficulty.enemySpeedIncrementAmount *= scene.difficulty.enemySpeedAmountChangeScale
-            scene.difficulty.enemyNextSpeedIncrease += scene.difficulty.enemySpeedIncrementInterval;
-        }
-    }
-
-    static flipRotation(rot) {
-        if (rot <= 0)
-            return Math.PI + rot;
-
-        return -Math.PI + rot;
-    }
-
-    update(dt) {
-        this.rotation = Vector2.angleTowards(this.position, scene.player.position);
-        let move = Vector2.fromAngle(this.rotation, scene.difficulty.enemyStartSpeed * dt);
-        this.position.x += move.x + this.impulse.x;
-        this.position.y += move.y + this.impulse.y;
-
-        this.playerDistance = Vector2.sqrDistance(scene.player.position, this.position);
-        if (this.playerDistance >= ChainsawEnemy.#removalDistance) {
-            this.destroy();
-            return;
-        }
-
-        if (!this.impulse.equals(Vector2.zero)) {
-            let signX = Math.sign(this.impulse.x);
-            let signY = Math.sign(this.impulse.y);
-
-            this.impulse.x += ChainsawEnemy.#impulseDampen * signX;
-            this.impulse.y += ChainsawEnemy.#impulseDampen * signY;
-
-            // Impulse is only a one time launch, so make it zero if it goes below/above it, while preserving the original direction
-            if (Math.sign(this.impulse.x) !== signX)
-                this.impulse.x = 0;
-            if (Math.sign(this.impulse.y) !== signY)
-                this.impulse.y = 0;
-        }
-
-        // Check if an enemy is touching the player
-        if (!scene.player.isImmune && this.playerDistance < scene.difficulty.enemyCollisionRadiusSquared && dt !== 0) {
-            scene.player.hurt();
-
-            // The player only took damage, launch the enemy away from it
-            if (!scene.player.dead)
-                this.impulse = Vector2.fromAngle(ChainsawEnemy.flipRotation(this.rotation), ChainsawEnemy.#collisionImpulse);
-        }
-    }
-
-    render(dt, images, transf) {
-        // Draw a single enemy
-        const center = new Vector2(this.screenX + this.size.width / 2, this.screenY + this.size.height / 2);
-        ctx.translate(center.x, center.y); // Required to add half size, for center pivot
-        let flip = Math.abs(this.rotation) >= Math.PI * 0.5 ? 1 : -1;
-        if (this.playerDistance < 25) // Avoid back-to-back flickering when the enemy is at the same pos as the player
-            flip = 1;
-        ctx.scale(flip, 1);
-
-        const animIdx = Math.floor((scene.gameTime + this.#animOffset) * 7 % 4);
-        const cropX = animIdx % 2;
-        const cropY = Math.floor(animIdx / 2);
-
-        // Note: 93 -> size + 1, because we added 1px gaps between images
-        ctx.drawImage(images['chainsaw'], cropX * 93, cropY * 93, 92, 92,-this.size.width / 2, -this.size.height / 2, this.size.width, this.size.height)
-
-        // Debug
-        if (!scene.DEBUG) return;
-        ctx.setTransform(transf);
-
-        fillCircle(center.x - this.size.width / 2, center.y - this.size.height / 2, 3, 'green');
-
-        fillCircle(center.x, center.y, 3, 'blue');
-        line(center, center.add(Vector2.fromAngle(this.rotation, 120)), 'purple');
-        ctx.fillStyle = 'black';
-        ctx.font = '22px Arial';
-        ctx.fillText(this.rotation, center.x - 500, center.y);
-        ctx.fillStyle = 'blue';
-        ctx.fillText(flip, center.x - 500, center.y + 50);
-        strokeCircle(center.x, center.y, scene.difficulty.enemyCollisionRadius, 'orange');
-    }
 }
