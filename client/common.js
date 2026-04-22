@@ -1,12 +1,12 @@
 // I KNEW IT, that this "POINT" would come, heh-eh
 // So I made the points into vector2-s, like a normal game engine would have
 class Vector2 {
-    static zero = Object.freeze(new Vector2(0, 0));
-    static one = Object.freeze(new Vector2(1, 1));
-    static up = Object.freeze(new Vector2(0, 1));
-    static down = Object.freeze(new Vector2(0, -1));
-    static left = Object.freeze(new Vector2(-1, 0));
-    static right = Object.freeze(new Vector2(1, 0));
+    static get zero() { return new Vector2(0, 0); };
+    static get one() { return new Vector2(1, 1); };
+    static get up() { return new Vector2(0, 1); };
+    static get down() { return new Vector2(0, -1); };
+    static get left() { return new Vector2(-1, 0); };
+    static get right() { return new Vector2(1, 0); };
 
     constructor(x, y) {
         this.x = x;
@@ -37,8 +37,8 @@ class Vector2 {
     toString() { return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)})`; }
 }
 class Size {
-    static zero = new Size(0, 0);
-    static one = new Size(1, 1);
+    static get zero() { return new Size(0, 0); };
+    static get one() { return new Size(1, 1); };
 
     get area() { return this.width * this.height; }
 
@@ -48,7 +48,7 @@ class Size {
     }
 }
 class Rect {
-    static identity = new Rect(0, 0, 0, 0);
+    static get identity() { return new Rect(0, 0, 0, 0); };
 
     constructor(x, y, width, height) {
         this.x = x;
@@ -70,33 +70,40 @@ const DIRECTION = Object.freeze({
 });
 
 class ClipRegion extends Rect {
-    constructor(x, y, width, height, atlas, scale) {
+    static get identity() { return new ClipRegion(0, 0, 0, 0, '', 0, 0); }
+
+    constructor(x, y, width, height, atlas, scale, optionalPadding = 0) {
         super(x, y, width, height);
         this.atlas = atlas;
         this.scale = scale;
+        this.optionalPadding = optionalPadding;
     }
 
     fullSize() { return new Size(this.width * this.scale, this.height * this.scale); }
 }
 const UIAtlas = Object.freeze({
-    ButtonRedLarge: new ClipRegion(0, 0, 60, 10, 'ui_atlas', 10),
-    ButtonRedSmall: new ClipRegion(60, 0, 40, 10, 'ui_atlas', 10),
-    ButtonYellowLarge: new ClipRegion(0, 10, 60, 10, 'ui_atlas', 10),
-    ButtonYellowSmall: new ClipRegion(60, 10, 40, 10, 'ui_atlas', 10),
-    ButtonBlueLarge: new ClipRegion(0, 20, 60, 10, 'ui_atlas', 10),
-    ButtonBlueSmall: new ClipRegion(60, 20, 40, 10, 'ui_atlas', 10),
-    ButtonGreenLarge: new ClipRegion(0, 30, 60, 10, 'ui_atlas', 10),
-    ButtonGreenSmall: new ClipRegion(60, 30, 40, 10, 'ui_atlas', 10),
-    HL_ButtonRedLarge: new ClipRegion(0, 40, 60, 10, 'ui_atlas', 10),
-    HL_ButtonRedSmall: new ClipRegion(60, 40, 40, 10, 'ui_atlas', 10),
-    HL_ButtonYellowLarge: new ClipRegion(0, 50, 60, 10, 'ui_atlas', 10),
-    HL_ButtonYellowSmall: new ClipRegion(60, 50, 40, 10, 'ui_atlas', 10),
-    HL_ButtonBlueLarge: new ClipRegion(0, 60, 60, 10, 'ui_atlas', 10),
-    HL_ButtonBlueSmall: new ClipRegion(60, 60, 40, 10, 'ui_atlas', 10),
-    HL_ButtonGreenLarge: new ClipRegion(0, 70, 60, 10, 'ui_atlas', 10),
-    HL_ButtonGreenSmall: new ClipRegion(60, 70, 40, 10, 'ui_atlas', 10),
-    ButtonArrow: new ClipRegion(0, 81, 24, 17, 'ui_atlas', 5),
-    HL_ButtonArrow: new ClipRegion(0, 81, 24, 17, 'ui_atlas', 5),
+    ButtonRedLarge: new ClipRegion(0, 0, 62, 12, 'uiAtlas', 10, 4),
+    ButtonRedSmall: new ClipRegion(61, 0, 42, 12, 'uiAtlas', 10, 4),
+    ButtonYellowLarge: new ClipRegion(0, 11, 62, 12, 'uiAtlas', 10, 4),
+    ButtonYellowSmall: new ClipRegion(61, 11, 42, 12, 'uiAtlas', 10, 4),
+    ButtonBlueLarge: new ClipRegion(0, 22, 62, 12, 'uiAtlas', 10, 4),
+    ButtonBlueSmall: new ClipRegion(61, 22, 42, 12, 'uiAtlas', 10, 4),
+    ButtonGreenLarge: new ClipRegion(0, 33, 62, 12, 'uiAtlas', 10, 4),
+    ButtonGreenSmall: new ClipRegion(61, 33, 42, 12, 'uiAtlas', 10, 4),
+    HL_ButtonRedLarge: new ClipRegion(0, 45, 62, 12, 'uiAtlas', 10, 4),
+    HL_ButtonRedSmall: new ClipRegion(61, 45, 42, 12, 'uiAtlas', 10, 4),
+    HL_ButtonYellowLarge: new ClipRegion(0, 56, 62, 12, 'uiAtlas', 10, 4),
+    HL_ButtonYellowSmall: new ClipRegion(61, 56, 42, 12, 'uiAtlas', 10, 4),
+    HL_ButtonBlueLarge: new ClipRegion(0, 67, 62, 12, 'uiAtlas', 10, 4),
+    HL_ButtonBlueSmall: new ClipRegion(61, 67, 42, 12, 'uiAtlas', 10, 4),
+    HL_ButtonGreenLarge: new ClipRegion(0, 78, 62, 12, 'uiAtlas', 10, 4),
+    HL_ButtonGreenSmall: new ClipRegion(61, 78, 42, 12, 'uiAtlas', 10, 4),
+    ButtonArrow: new ClipRegion(103, 0, 26, 19, 'uiAtlas', 5),
+    HL_ButtonArrow: new ClipRegion(103, 19, 26, 19, 'uiAtlas', 5),
+    InputField: new ClipRegion(0, 90, 62, 12, 'uiAtlas', 10, 4),
+    HL_InputField: new ClipRegion(0, 102, 62, 12, 'uiAtlas', 10, 4),
+    ButtonArrowSmall: new ClipRegion(103, 38, 15, 11, 'uiAtlas', 5),
+    HL_ButtonArrowSmall: new ClipRegion(103, 49, 15, 11, 'uiAtlas', 5),
 });
 const ButtonTypes = Object.freeze({
     RedLarge: 'ButtonRedLarge',
@@ -108,6 +115,7 @@ const ButtonTypes = Object.freeze({
     GreenLarge: 'ButtonGreenLarge',
     GreenSmall: 'ButtonGreenSmall',
     Arrow: 'ButtonArrow',
+    ArrowSmall: 'ButtonArrowSmall',
 });
 function getButtonSize(btntype) { return UIAtlas[btntype].fullSize(); }
 
@@ -148,7 +156,7 @@ class HoverAnimation {
     }
     static bind(speed, vector, offset) { return (e) => { return HoverAnimation.#handle(e, speed, vector, offset); } };
 }
-class HoverFlyAnimation {
+class FlyHoverEvent {
     static apply = this.bind(.3, Vector2.up.multiply(16));
     static #handle(e, duration, vector) {
         if (e.mouseOver) {
@@ -164,9 +172,9 @@ class HoverFlyAnimation {
             ctx.translate(-vec.x, vec.y);
         }
     }
-    static bind(duration, vector) { return (e) => { HoverFlyAnimation.#handle(e, duration, vector); }; }
+    static bind(duration, vector) { return (e) => { FlyHoverEvent.#handle(e, duration, vector); }; }
 }
-class StartFadeFlyUpAnimation {
+class FadeFlyStartAnimation {
     static apply = this.bind(.4, Vector2.up.multiply(120));
     static #handle(e, duration, vector) {
         // For this we could use the canvas translating, I may modify this to return a point instead in the future to replace the canvas transformations
@@ -184,7 +192,7 @@ class StartFadeFlyUpAnimation {
         return {
             duration: duration,
             shadowingUpdates: shadowingUpdates,
-            render: (e) => { StartFadeFlyUpAnimation.#handle(e, duration, vector); }
+            render: (e) => { FadeFlyStartAnimation.#handle(e, duration, vector); }
         };
     }
 }

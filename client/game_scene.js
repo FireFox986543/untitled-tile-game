@@ -24,6 +24,7 @@ class MeinkraftGameScene extends Scene {
     gameLoop(dt) {
         getSelectedUIElement();
         handleUIClicks();
+        updateUIElements(dt);
 
         if (getKeyDown(KeyCode.KeyPageUp))
             this.brush = Math.min(this.brush + 1, 255);
@@ -57,8 +58,7 @@ class MeinkraftGameScene extends Scene {
         this.horizontal = (keyA ? -1 : 0) + (keyD ? 1 : 0);
         this.player.syncInput(this.horizontal);
 
-        for (let i = 0; i < this.entities.length; i++)
-            this.entities[i].update(dt);
+        updateEntities(dt);
 
         this.scrollX += (this.player.position.x - this.scrollX) * 0.2;
         this.scrollY += (this.player.position.y - this.scrollY) * 0.2;
@@ -174,7 +174,7 @@ class MeinkraftGameScene extends Scene {
     }
 
     restartGame() {
-        Object.keys(keys).forEach(key => delete keys[key]);
+        resetKeys();
         this.entities.length = 0;
         this.scrollX = 0;
         this.scrollY = 0;
@@ -206,7 +206,7 @@ class MeinkraftGameScene extends Scene {
     }
 
     onLoad() {
-        const homeArrowBtn = new UIButton(new Vector2(20, 20), '', ButtonTypes.Arrow, () => { this.#loadMenu(); }, HorizontalAlign.LEFT, VerticalAlign.TOP, HoverAnimation.apply, HoverFlyAnimation.bind(.3, Vector2.left.multiply(16)));
+        const homeArrowBtn = new UIButton(new Vector2(20, 20), '', ButtonTypes.Arrow, () => { this.#loadMenu(); }, HorizontalAlign.LEFT, VerticalAlign.TOP, HoverAnimation.apply, FlyHoverEvent.bind(.3, Vector2.left.multiply(16)));
 
         this.uiElements.push(homeArrowBtn);
         this.restartGame();

@@ -1,0 +1,10 @@
+﻿[*.cs]
+
+# CS8600: Converting null literal or possible null value to non-nullable type.
+dotnet_diagnostic.CS8600.severity = none
+
+# CS8604: Possible null reference argument.
+dotnet_diagnostic.CS8604.severity = silent
+
+# CA1822: Mark members as static
+dotnet_diagnostic.CA1822.severity = silent

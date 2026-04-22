@@ -14,7 +14,7 @@ class UIElement {
         this.children = [];
         this.horizontalAlign = horizontalAlign;
         this.verticalAlign = verticalAlign;
-        this.selectable = true;
+        this.selectable = true; // Can we select this element, aka catches ui events
     }
 
     #posHelper(align, offset, size) {
@@ -40,7 +40,8 @@ class UIElement {
     // Whether this element is truly active, based on shadowing
     get isActive() { return !this.#shadowed && this.#enabled; }
 
-    render() { }
+    render(dt) { }
+    update(dt) { }
     onMouseEnter() { }
     onMouseExit() { }
     onMouseClick(btn) { }
@@ -86,7 +87,7 @@ class UIElement {
             this.children.forEach(c => c.setShadowed(!value));
     }
 }
-class UIButton extends UIElement {
+class UIAnimated extends UIElement {
     mouseOver = false
     hoverStart = 0;
     hoverEnd = 0;
@@ -94,12 +95,8 @@ class UIButton extends UIElement {
 
     get inStartAnimDuration() { return this.startAnimation !== null && animationNow() <= this.activeTime + this.startAnimation.duration; }
 
-    constructor(point, text, buttonType, clicked, horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null) {
-        const button = UIAtlas[buttonType];
-        super(new Rect(point.x, point.y, button.width * button.scale, button.height * button.scale), horizontalAlign, verticalAlign);
-        this.text = text;
-        this.buttonType = buttonType;
-        this.clicked = clicked;
+    constructor(point, clip, horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null) {
+        super(new Rect(point.x, point.y, clip.width * clip.scale, clip.height * clip.scale), horizontalAlign, verticalAlign);
         this.mouseOver = false;
         this.animation = animation;
         this.hoverAnimation = hoverAnimation;
@@ -107,7 +104,7 @@ class UIButton extends UIElement {
         this.activeTime = animationNow();
     }
 
-    render() {
+    render(dt) {
         let renderPoint = new Vector2(this.x, this.y);
 
         if (this.startAnimation !== null && this.inStartAnimDuration) {
@@ -129,8 +126,7 @@ class UIButton extends UIElement {
             // In the anim function we pass in this to refer to this ui element, also it will return the new position after the animation
             renderPoint = this.animation(this);
 
-        renderButton(UIAtlas[`${this.mouseOver ? "HL_" : ""}${this.buttonType}`], this.text, renderPoint.x, renderPoint.y);
-        ctx.globalAlpha = scaleAlpha(1);
+        return renderPoint;
     }
 
     onMouseEnter() {
@@ -143,12 +139,11 @@ class UIButton extends UIElement {
         this.mouseOver = false;
         this.hoverEnd = animationNow();
     }
-    onMouseClick(btn) { this.clicked(btn); }
 
     setShadowed(value) {
         super.setShadowed(value);
 
-        if(this.startAnimation !== null && this.startAnimation.shadowingUpdates)
+        if (this.startAnimation !== null && this.startAnimation.shadowingUpdates)
             this.activeTime = value ? -1000 : animationNow();
     }
     setActive(value) {
@@ -157,16 +152,138 @@ class UIButton extends UIElement {
         this.activeTime = value ? animationNow() : -1000;
     }
 }
-class UIPanel extends UIElement {
-    constructor() { super(Rect.identity); }
+class UIButton extends UIAnimated {
+    constructor(point, text, buttonType, clicked, horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null, textAlign = TextAlign.CENTER) {
+        const clip = UIAtlas[buttonType];
+        super(point, clip, horizontalAlign, verticalAlign, animation, hoverAnimation, startAnimation);
+        this.text = text;
+        this.buttonType = buttonType;
+        this.clicked = clicked;
+        this.textAlign = textAlign;
+    }
+
+    render() {
+        const renderPoint = super.render();
+
+        renderButton(UIAtlas[`${this.mouseOver ? "HL_" : ""}${this.buttonType}`], this.text, this.textAlign, renderPoint.x, renderPoint.y);
+        ctx.globalAlpha = scaleAlpha(1);
+    }
+
+    onMouseClick(btn) { this.clicked(btn); }
 }
-class UIText extends UIElement {
-    constructor(point, text, color, horizontalAlign, verticalAlign) {
-        super(new Rect(point.x, point.y, 0, 0), horizontalAlign, verticalAlign);
+class UIInputField extends UIAnimated {
+    constructor(point, onInput = null, placeholder = '', maxLength = 1024, horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null, textAlign = TextAlign.LEFT) {
+        const clip = UIAtlas['InputField'];
+        super(point, clip, horizontalAlign, verticalAlign, animation, hoverAnimation, startAnimation);
+        this.onInput = onInput;
+        this.placeholder = placeholder;
+        this.maxLength = maxLength;
+        this.textAlign = textAlign;
+
+        this.text = '';
+        this.cursor = undefined;
+        this.cursorXOffset = undefined;
+        this.textLength = undefined;
+        this.selected = false;
+        this.timerOffset = animationNow();
+    }
+
+    render() {
+        const renderPoint = super.render();
+
+        renderInputField(this, UIAtlas[`${this.mouseOver || this.selected ? "HL_" : ""}InputField`], this.text.length === 0, renderPoint.x, renderPoint.y);
+        ctx.globalAlpha = scaleAlpha(1);
+    }
+
+    update() {
+        if (getMouseButtonDown(MouseButtons.LEFT) && !this.mouseOver) {
+            this.selected = false;
+            this.cursor = undefined;
+            this.cursorXOffset = undefined;
+            this.textLength = undefined;
+            return;
+        }
+
+        let key = getCurrentKeyDown();
+        if (key && this.selected) {
+            if (this.cursor === undefined)
+                this.cursor = 0;
+
+            // Handle special keys
+            if (key === KeyCode.KeyBackspace && this.text.length > 0) {
+                this.text = this.text.slice(0, this.cursor - 1) + this.text.slice(this.cursor, this.text.length);
+                this.cursor--;
+            }
+            else if (key === KeyCode.KeyDelete && this.text.length > 0)
+                this.text = this.text.slice(0, this.cursor) + this.text.slice(this.cursor + 1, this.text.length);
+            else if (key === KeyCode.KeyArrowLeft && this.cursor > 0)
+                this.cursor--;
+            else if (key === KeyCode.KeyArrowRight && this.cursor < this.text.length)
+                this.cursor++;
+            else if (key === KeyCode.KeyHome)
+                this.cursor = 0;
+            
+            else if (key === KeyCode.KeyEnd)
+                this.cursor = this.text.length;
+            // Standard keys (a-z, 0-9 + special characters)
+            else if (key.length === 1 && this.text.length < this.maxLength) {
+                if (!getKey(KeyCode.KeyShift))
+                    key = key.toLowerCase();
+
+                this.text = this.text.slice(0, this.cursor) + key + this.text.slice(this.cursor, this.text.length);
+                this.cursor++;
+            }
+            else
+                return;
+
+            this.cursorXOffset = undefined;
+            this.textLength = undefined;
+            this.timerOffset = animationNow();
+
+            if(typeof this.onInput === 'function')
+                oninput(this.text);
+        }
+    }
+
+    onMouseClick(btn) {
+        if (btn === MouseButtons.LEFT && !this.selected) {
+            this.selected = true;
+            this.cursor = this.text.length;
+            this.cursorXOffset = undefined;
+            this.textLength = undefined;
+
+            this.timerOffset = animationNow();
+        }
+    }
+}
+class UIText extends UIAnimated {
+    constructor(point, text, color, textAlign = 0, fontSize = 32, font = 'Jersey 10', horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null) {
+        super(point, ClipRegion.identity, horizontalAlign, verticalAlign, animation, hoverAnimation, startAnimation);
         this.selectable = false;
         this.text = text;
         this.color = color;
+        this.textAlign = textAlign;
+        this.fontSize = fontSize;
+        this.font = font;
     }
+
+    render() {
+        const renderPoint = super.render();
+
+        ctx.font = `${this.fontSize}px "${this.font}"`;
+        ctx.fillStyle = this.color;
+        const before = [ctx.textBaseline, ctx.textAlign];
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = this.textAlign;
+
+        ctx.fillText(this.text, renderPoint.x, renderPoint.y);
+
+        ctx.textBaseline = before[0];
+        ctx.textAlign = before[1];
+    }
+}
+class UIPanel extends UIElement {
+    constructor() { super(Rect.identity); }
 }
 
 function setPointer(pt) { pointerType = pt; }
@@ -179,16 +296,58 @@ function renderPointer() {
     ctx.drawImage(images['pointer' + pointerType.id], 0, 0, 100, 100);
     ctx.setTransform(transf);
 }
-function renderButton(button, text, x, y) {
-    ctx.drawImage(images[button.atlas], button.x, button.y, button.width, button.height, x, y, button.width * button.scale, button.height * button.scale);
+function renderButton(clip, text, textAlign, x, y) {
+    ctx.drawImage(images[clip.atlas], clip.x + 0.1, clip.y + 0.1, clip.width - 0.2, clip.height - 0.2, x, y, clip.width * clip.scale, clip.height * clip.scale);
     ctx.font = '64px "Jersey 10"';
     ctx.fillStyle = 'white';
-    const halfWidth = ctx.measureText(text).width / 2;
+    let xOffset = alignedInputHelper(textAlign, clip);
     const before = ctx.textBaseline;
     ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    ctx.fillText(text, x + button.width * button.scale / 2 - halfWidth, y + button.height * button.scale / 2)
+    ctx.textAlign = textAlign;
+    ctx.fillText(text, x + xOffset, y + clip.height * clip.scale / 2)
     ctx.textBaseline = before;
+}
+function renderInputField(inputField, clip, isPlaceholder, x, y) {
+    ctx.drawImage(images[clip.atlas], clip.x + 0.1, clip.y + 0.1, clip.width - 0.2, clip.height - 0.2, x, y, clip.width * clip.scale, clip.height * clip.scale);
+    ctx.font = '64px "Jersey 10"';
+    ctx.fillStyle = isPlaceholder ? 'gray' : 'black';
+    let xOffset = alignedInputHelper(inputField.textAlign, clip);
+    const before = [ctx.textBaseline, ctx.textAlign];
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = inputField.textAlign;
+
+    ctx.fillText(isPlaceholder ? inputField.placeholder : inputField.text, x + xOffset, y + clip.height * clip.scale / 2)
+
+    if (inputField.textLength === undefined)
+        inputField.textLength = ctx.measureText(inputField.text).width;
+
+    ctx.textBaseline = before[0];
+    ctx.textAlign = before[1];
+    ctx.fillStyle = 'black';
+
+    if (inputField.cursor !== undefined && fraction(animationNow() - inputField.timerOffset) <= 0.5) {
+        if (inputField.cursorXOffset === undefined)
+            inputField.cursorXOffset = ctx.measureText(inputField.text.slice(0, inputField.cursor)).width;
+
+        let offset = xOffset;
+
+        if (inputField.textAlign === TextAlign.CENTER)
+            offset = clip.width * clip.scale / 2 - inputField.textLength / 2;
+        else if (inputField.textAlign === TextAlign.RIGHT)
+            offset = xOffset - inputField.textLength;
+
+        ctx.fillRect(x + offset + inputField.cursorXOffset, y + clip.height * clip.scale / 2 - 32, 1, 64);
+    }
+}
+function alignedInputHelper(align, clip) {
+    switch (align) {
+        case TextAlign.CENTER:
+            return clip.width * clip.scale / 2;
+        case TextAlign.RIGHT:
+            return clip.width * clip.scale - clip.optionalPadding * clip.scale;
+        default:
+            return 0 + clip.optionalPadding * clip.scale;
+    }
 }
 
 const HorizontalAlign = Object.freeze({
@@ -200,6 +359,12 @@ const VerticalAlign = Object.freeze({
     TOP: 0,
     CENTER: 1,
     BOTTOM: 2,
+});
+
+const TextAlign = Object.freeze({
+    LEFT: 'left',
+    CENTER: 'center',
+    RIGHT: 'right',
 });
 
 function getSelectedUIElement() {

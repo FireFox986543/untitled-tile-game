@@ -74,7 +74,7 @@ function resizeCanvas() {
 async function requestImages() {
     const paths = {
         'tileAtlas': 'src/tileAtlas.png',
-        'ui_atlas': 'src/ui_atlas.png',
+        'uiAtlas': 'src/uiAtlas.png',
         'grid': 'src/grid.png',
         'player': 'src/player.png'
     }
@@ -240,7 +240,7 @@ function renderEntities(dt) {
     }
     return culled;
 }
-function renderUIElements() {
+function renderUIElements(dt) {
     let fillStyle = ctx.fillStyle;
     let strokeStyle = ctx.strokeStyle;
     let textBaseline = ctx.textBaseline;
@@ -248,7 +248,7 @@ function renderUIElements() {
     for (let i = 0; i < scene.uiElements.length; i++) {
         const e = scene.uiElements[i];
         if (e.isActive) {
-            e.render();
+            e.render(dt);
             ctx.setTransform(transf); // Reset the transform after every ui element
         }
     }
@@ -257,7 +257,14 @@ function renderUIElements() {
     ctx.strokeStyle = strokeStyle;
     ctx.textBaseline = textBaseline;
 }
-
+function updateEntities(dt) {
+    for (let i = 0; i < scene.entities.length; i++)
+        scene.entities[i].update(dt);
+}
+function updateUIElements(dt) {
+    for (let i = 0; i < scene.uiElements.length; i++)
+        scene.uiElements[i].update(dt);
+}
 
 function renderBackground() {
     // Render backgrounds, No explaining,

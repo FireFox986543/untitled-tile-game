@@ -86,8 +86,13 @@ class PlayerEntity extends Entity {
             if(hitCollider && this.velocity.y > 0)
                 this.velocity.y = -1;
         }
-        if (Math.abs(this.velocity.x) > 0.01)
-            this.tryToMove(this.velocity.x > 0 ? DIRECTION.EAST : DIRECTION.WEST, Math.abs(this.velocity.x) * dt);
+        if (Math.abs(this.velocity.x) > 0.01) {
+            let hitCollider = this.tryToMove(this.velocity.x > 0 ? DIRECTION.EAST : DIRECTION.WEST, Math.abs(this.velocity.x) * dt);
+
+            // If we hit a wall, stop the player from going horizontally
+            if(hitCollider)
+                this.velocity.x = 0;
+        }
     }
     render(dt, images) {
         ctx.drawImage(images['player'], this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
@@ -146,7 +151,7 @@ class PlayerEntity extends Entity {
         this.position = pos;
         return hitAnything;
     }
-    checkForCollision(point) { return scene.getTileAt(Math.floor(point.x), Math.floor(point.y)) !== 0; }
+    checkForCollision(point) { return getTileProperties(scene.getTileAt(Math.floor(point.x), Math.floor(point.y))).solid; }
     collided(points, origin) {
         let collided = false;
 

@@ -15,10 +15,12 @@ const mouseButtons = {
 };
 const mousePosition = new Vector2(0, -1000);
 
+document.addEventListener('visibilitychange', resetKeys);
+
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener('keydown', function (e) {
     const k = e.key.toUpperCase();
-    if(e.repeat) // Cancel Windows' stupid repeating functionality
+    if (e.repeat) // Cancel Windows' stupid repeating functionality
         return;
 
     // Preserve some of the browsers' features
@@ -44,11 +46,11 @@ document.addEventListener('keyup', function (e) {
     }
 })
 document.addEventListener("mousemove", (e) => {
-    if(viewport.rect === undefined)
+    if (viewport.rect === undefined)
         return;
 
     mousePosition.x = (e.clientX - viewport.rect.left - viewport.offsetX) / viewport.scale;
-    mousePosition.y = (e.clientY- viewport.rect.top - viewport.offsetY) / viewport.scale;
+    mousePosition.y = (e.clientY - viewport.rect.top - viewport.offsetY) / viewport.scale;
 });
 //document.addEventListener("pointermove", handleMouseButtons); pointermove causes problems when moving the mouse around and clicks not registering! So I temporarly removed it
 document.addEventListener("pointerdown", handleMouseButtons);
@@ -77,6 +79,26 @@ function processKeys() {
         mouseButtons[i].processed = true;
 }
 
+function getCurrentKeyDown() {
+    for (const key in keys) {
+        if (!Object.prototype.hasOwnProperty.call(keys, key)) continue;
+        if (keys[key].state && !keys[key].processed)
+            return key;
+    }
+
+    return null;
+}
+function getCurrentKey() {
+    for (const key in keys) {
+        if (!Object.prototype.hasOwnProperty.call(keys, key)) continue;
+        if (keys[key].state)
+            return key;
+    }
+    
+    return null;
+}
+function isAnyKeyDown() { return getCurrentKey() !== null; }
+
 function getKeyDown(keycode) { // We just pressed down the key this tick
     if (!Object.prototype.hasOwnProperty.call(keys, keycode)) return false;
     return keys[keycode].state && !keys[keycode].processed;
@@ -98,6 +120,10 @@ function getMouseButton(mousebutton) { // We are holding down the button
 }
 function getMouseButtonUp(mousebutton) { // We just released the button this tick
     return !mouseButtons[mousebutton].state && !mouseButtons[mousebutton].processed;
+}
+
+function resetKeys() {
+    Object.keys(keys).forEach(key => delete keys[key]);
 }
 
 const KeyCode = Object.freeze({

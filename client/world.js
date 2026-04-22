@@ -131,3 +131,30 @@ const TILES = Object.freeze({
 
     BORDER_TILE: 255
 });
+const TILEPROPERTIES = Object.freeze({
+    [TILES.AIR]: { solid: false, breakable: false },
+    [TILES.STONE]: { solid: true, breakable: true },
+    [TILES.COBBLE_STONE]: { solid: true, breakable: true },
+    [TILES.DIRT]: { solid: true, breakable: true },
+    [TILES.GRASS]: { solid: true, breakable: true },
+    [TILES.SAND]: { solid: true, breakable: true },
+    [TILES.LOG1]: { solid: true, breakable: true },
+    [TILES.PLANK1]: { solid: true, breakable: true },
+    [TILES.LEAVES1]: { solid: false, breakable: true },
+    [TILES.LOG2]: { solid: true, breakable: true },
+    [TILES.PLANK2]: { solid: true, breakable: true },
+    [TILES.LEAVES2]: { solid: false, breakable: true },
+    [TILES.WATER]: { solid: false, breakable: false },
+    [TILES.LAVA]: { solid: false, breakable: false },
+    [TILES.OBSIDIAN]: { solid: true, breakable: true },
+    [TILES.TULIP]: { solid: false, breakable: true },
+    [TILES.CACTUS]: { solid: false, breakable: true },
+    [TILES.DEAD_PLANT]: { solid: false, breakable: true },
+    [TILES.ANCIENT_THINGY]: { solid: true, breakable: true },
+    [TILES.ANCIENT_THINGY2]: { solid: true, breakable: true },
+    [TILES.DARK_BRICKS]: { solid: true, breakable: true },
+    [TILES.DIAMOND_ORE]: { solid: true, breakable: true }
+});
+
+// HELPERS
+function getTileProperties(tileID) { const p = TILEPROPERTIES[tileID]; return p != null ? p : { solid: true, breakable: false }; }
