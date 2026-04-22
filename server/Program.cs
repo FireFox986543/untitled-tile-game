@@ -4,7 +4,7 @@
     {
         static void Main(string[] args)
         {
-            var server = new WebSocketServer("http://192.168.1.65:8123/");
+            var server = new WebSocketServer("http://192.168.1.65:43169/");
             server.StartServer().GetAwaiter().GetResult();
 
             Console.WriteLine("Shutting down...");

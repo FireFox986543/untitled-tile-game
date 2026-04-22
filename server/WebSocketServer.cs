@@ -11,7 +11,7 @@ namespace server
     {
         private readonly ConcurrentDictionary<string, WebsocketConnection> connections;
         private readonly string uri;
-        private HttpListener listener;
+        private readonly HttpListener listener;
 
         private readonly Dictionary<string, Action<PacketData>> packetHandlers;
 
@@ -110,14 +110,27 @@ namespace server
                                 break;
                             }
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sesProp.GetString());
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sesProp.GetString(), con.PlayerName);
                         }
                         else // The client is connecting for the first time
                         {
                             string sessionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                            string playerName;
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey);
-                            await Send(ws, sessionKey);
+                            if(!doc.TryGetProperty("playerName", out var nameProp) || nameProp.GetString() == null)
+                                playerName = "Player" + Random.Shared.Next(1000, 9999);
+                            else
+                                playerName = nameProp.GetString();
+
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, playerName);
+
+                            string sendData = JsonSerializer.Serialize(new
+                            {
+                                type = "auth_success",
+                                sessionKey
+                            });
+
+                            await Send(ws, sendData);
                         }
 
                         Console.WriteLine($"Authenticated: {clientId}");
@@ -171,10 +184,7 @@ namespace server
                 if (ms.Length > 4096)
                 {
                     Console.WriteLine("Message too large. Closing connection on ({clientId}).");
-                    await ws.CloseAsync(
-                        WebSocketCloseStatus.MessageTooBig,
-                        "Message too large",
-                        CancellationToken.None);
+                    await ws.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Message too large", CancellationToken.None);
 
                     return null;
                 }
@@ -255,12 +265,13 @@ namespace server
         }
     }
 
-    public class WebsocketConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey)
+    public class WebsocketConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey, string playerName)
     {
         public WebSocket Socket = socket;
         public DateTime LastActivity = lastActivity;
         public IPAddress IP = ip;
         public string SessionKey = sessionKey;
+        public string PlayerName = playerName;
     }
 
     public readonly struct PacketData(string ClientId, JsonElement Payload)

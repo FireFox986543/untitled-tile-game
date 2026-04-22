@@ -241,7 +241,7 @@ class UIInputField extends UIAnimated {
             this.timerOffset = animationNow();
 
             if(typeof this.onInput === 'function')
-                oninput(this.text);
+                this.onInput(this.text);
         }
     }
 
