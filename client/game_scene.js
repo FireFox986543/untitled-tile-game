@@ -5,9 +5,11 @@ class MeinkraftGameScene extends Scene {
     #fadeDuration = .7;
 
     world;
+    isMultiGame = false;
 
     constructor() {
         super();
+        this.isMultiGame = multiGame !== null;
 
         this.horizontal = 0;
 
@@ -26,15 +28,17 @@ class MeinkraftGameScene extends Scene {
         handleUIClicks();
         updateUIElements(dt);
 
+        this.processReceivedChunks();
+
         if (getKeyDown(KeyCode.KeyPageUp))
             this.brush = Math.min(this.brush + 1, 255);
         if (getKeyDown(KeyCode.KeyPageDown))
             this.brush = Math.max(this.brush - 1, 0);
 
         let selectedTile = new Vector2(Math.floor(revTranslateX(mousePosition.x)), Math.floor(revTranslateY(mousePosition.y)));
-        if(getMouseButton(0))
+        if (getMouseButton(0))
             this.setTileAt(selectedTile.x, selectedTile.y, this.brush);
-        else if(getKeyDown(KeyCode.KeyE))
+        else if (getKeyDown(KeyCode.KeyE))
             this.brush = this.getTileAt(selectedTile.x, selectedTile.y);
 
         if (animationNow() >= this.#sceneEnds) {
@@ -173,25 +177,6 @@ class MeinkraftGameScene extends Scene {
         ctx.restore();
     }
 
-    restartGame() {
-        resetKeys();
-        this.entities.length = 0;
-        this.scrollX = 0;
-        this.scrollY = 0;
-        this.horizontal = 0;
-        timeScale = 1;
-        this.gameTime = 0;
-        this.#sceneStart = animationNow();
-        this.world = new World();
-
-        for (let i = -5; i <= 5; i++) {
-            this.world.addChunk(SimpleChunkGenerator.generateTestChunk(i));
-        }
-
-        this.player = new PlayerEntity(new Vector2(3, 24), new Size(.5, 1.7), 6);
-        this.entities.push(this.player);
-    }
-
     getIdxAtTile(x, y) { return y * Chunk.chunkSizeX + x; }
     getXYCoordsFromIdx(idx) { return new Vector2(idx % Chunk.chunkSizeX, Math.floor(idx / Chunk.chunkSizeX)); }
     getTileAt(x, y) { return this.world.getGlobalTileAt(x, y); }
@@ -203,12 +188,47 @@ class MeinkraftGameScene extends Scene {
 
         this.#sceneEnds = animationNow() + this.#fadeDuration;
         this.#nextScene = new MenuScene();
+        multiGame?.disconnect();
     }
 
     onLoad() {
         const homeArrowBtn = new UIButton(new Vector2(20, 20), '', ButtonTypes.Arrow, () => { this.#loadMenu(); }, HorizontalAlign.LEFT, VerticalAlign.TOP, HoverAnimation.apply, FlyHoverEvent.bind(.3, Vector2.left.multiply(16)));
 
         this.uiElements.push(homeArrowBtn);
-        this.restartGame();
+
+        resetKeys();
+        this.entities.length = 0;
+        this.scrollX = 0;
+        this.scrollY = 0;
+        this.horizontal = 0;
+        timeScale = 1;
+        this.gameTime = 0;
+        this.#sceneStart = animationNow();
+        this.world = new World();
+
+        if (this.isMultiGame) {
+            multiGame.onClose = () => {
+                this.#loadMenu();
+            };
+            this.player = new PlayerEntity(new Vector2(multiGame.playerDefPos.x, multiGame.playerDefPos.y), 6);
+
+            if (multiGame.players.length > 0)
+                multiGame.players.forEach(p => this.entities.push(p));
+        }
+        else {
+            for (let i = -10; i <= 10; i++)
+                this.world.addChunk(SimpleChunkGenerator.generateTestChunk(i));
+
+            this.player = new PlayerEntity(new Vector2(3, 30), 6);
+        }
+
+        this.entities.push(this.player);
+    }
+
+    processReceivedChunks() {
+        if (multiGame && multiGame.receivedChunks) {
+            multiGame.receivedChunks.forEach(chunk => this.world.addChunk(chunk));
+            multiGame.receivedChunks = null;
+        }
     }
 }

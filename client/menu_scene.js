@@ -87,15 +87,25 @@ class MenuScene extends Scene {
         const infoText = new UIText(new Vector2(0, -100), '', 'black', TextAlign.CENTER, 48, 'Jersey 10', HorizontalAlign.CENTER, VerticalAlign.CENTER);
         infoText.setParent(multiPanel);
         const connectBtn = new UIButton(new Vector2(380, 0), '', ButtonTypes.ArrowSmall, async () => {
-            if(this.#tryingToConnect)
+            if (this.#tryingToConnect)
                 return;
 
+            infoText.text = 'Connecting...'
+
             this.#tryingToConnect = true;
-            const result = await tryToConnect(this.#ipInput.text, DEFAULT_PORT);
+            const result = await tryToConnect(this.#ipInput.text || '192.168.1.65', DEFAULT_PORT);
             this.#tryingToConnect = false;
 
             if (result.success)
-                createMultiConnection(this.#ipInput.text, DEFAULT_PORT);
+                createMultiConnection(this.#ipInput.text || '192.168.1.65', DEFAULT_PORT, () => {
+                    if (this.#sceneEnds !== undefined)
+                        return;
+
+                    infoText.text = 'Joining game!';
+
+                    this.#sceneEnds = animationNow() + this.#fadeDuration;
+                    this.#nextScene = new MeinkraftGameScene();
+                });
             else
                 infoText.text = result.error;
         }, HorizontalAlign.CENTER, VerticalAlign.CENTER, null, FlyHoverEvent.bind(.3, Vector2.right.multiply(8)), null);

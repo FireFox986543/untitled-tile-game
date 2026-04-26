@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -30,7 +31,7 @@ namespace server
             listener.Start();
             Console.WriteLine($"Listening on {uri}");
 
-            //_ = Task.Run(() => ServerLoop());
+            _ = Task.Run(() => ServerLoop());
             _ = Task.Run(() => HeartbeatLoop());
 
             while (true)
@@ -63,16 +64,20 @@ namespace server
 
                 while (ws.State == WebSocketState.Open)
                 {
-                    var message = await ReceiveFullMessage(ws);
+                    var message = await ReceiveFullMessage(ws, clientId);
 
                     if (message == null)
                         break;
 
                     var doc = JsonSerializer.Deserialize<JsonElement>(message);
 
-                    if(!doc.TryGetProperty("type", out var typeProp) || typeProp.GetString() == null)
+                    if (!doc.TryGetProperty("type", out var typeProp) || typeProp.GetString() == null)
                     {
-                        await ws.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Invalid message format", CancellationToken.None);
+                        if (clientId != null)
+                            await DisconnectClient(clientId, "Sent invalid packet");
+                        else
+                            await ws.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Invalid message format", CancellationToken.None);
+
                         break;
                     }
 
@@ -88,9 +93,10 @@ namespace server
                         }
 
                         clientId = prop.GetString();
-                        
+                        string sessionKey;
+
                         // This client was connected before
-                        if(connections.TryGetValue(clientId, out var con))
+                        if (connections.TryGetValue(clientId, out var con))
                         {
                             if (con.IP.ToString() != ip.ToString())
                             {
@@ -104,36 +110,74 @@ namespace server
                                 break;
                             }
 
-                            if (!doc.TryGetProperty("sessionKey", out var sesProp) || sesProp.GetString() != con.SessionKey)
+                            if (!doc.TryGetProperty("sessionKey", out var sesProp) || (sessionKey = sesProp.GetString()) != con.SessionKey)
                             {
                                 await ws.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Authentication failed", CancellationToken.None);
                                 break;
                             }
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sesProp.GetString(), con.PlayerName);
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sesProp.GetString(), con.Player);
                         }
                         else // The client is connecting for the first time
                         {
-                            string sessionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                            sessionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
                             string playerName;
+                            int playerSkin = 0;
 
-                            if(!doc.TryGetProperty("playerName", out var nameProp) || nameProp.GetString() == null)
+                            if (!doc.TryGetProperty("playerName", out var nameProp) || nameProp.GetString() == null)
                                 playerName = "Player" + Random.Shared.Next(1000, 9999);
                             else
                                 playerName = nameProp.GetString();
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, playerName);
+                            if (doc.TryGetProperty("playerSkin", out var skinProp))
+                                playerSkin = skinProp.GetInt32();
+                            else
+                                Console.WriteLine("Failed to get player skin :P");
 
-                            string sendData = JsonSerializer.Serialize(new
-                            {
-                                type = "auth_success",
-                                sessionKey
-                            });
-
-                            await Send(ws, sendData);
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(0, 30), playerName, playerSkin));
                         }
 
+                        var player = connections[clientId].Player;
+                        var playerList = new List<object>();
+
+                        foreach (var c in connections)
+                        {
+                            if (c.Key != clientId)
+                                playerList.Add(new
+                                {
+                                    id = c.Key,
+                                    playerName = c.Value.Player.PlayerName,
+                                    playerSkin = c.Value.Player.PlayerSkin,
+                                    x = c.Value.Player.Position.X,
+                                    y = c.Value.Player.Position.Y,
+                                });
+                        }
+
+                        string sendData = JsonSerializer.Serialize(new
+                        {
+                            type = "authSuccess",
+                            sessionKey,
+                            player = new
+                            {
+                                posX = player.Position.X,
+                                posY = player.Position.Y
+                            },
+                            players = playerList,
+                        });
+
+                        await Send(ws, sendData);
+
                         Console.WriteLine($"Authenticated: {clientId}");
+
+                        await BroadcastExcept(JsonSerializer.Serialize(new
+                        {
+                            type = "playerConnected",
+                            id = clientId,
+                            playerName = player.PlayerName,
+                            playerSkin = player.PlayerSkin,
+                            x = player.Position.X,
+                            y = player.Position.Y,
+                        }), clientId);
                     }
                     else if (clientId == null)
                     {
@@ -146,7 +190,7 @@ namespace server
                         break;
                     }
                     else if (type != null && packetHandlers.TryGetValue(type, out var handler))
-                        handler(new PacketData(clientId, doc));
+                        handler(new PacketData(clientId, doc, connections[clientId].Player));
 
                     connections[clientId].LastActivity = DateTime.UtcNow;
                 }
@@ -157,18 +201,14 @@ namespace server
             }
             finally
             {
-                if (ws != null && ws.State != WebSocketState.Closed)
-                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-
-                if (clientId != null)
-                    connections.TryRemove(clientId, out _);
+                await DisconnectClient(clientId);
 
                 ws?.Dispose();
                 Console.WriteLine($"Client disconnected ({clientId})");
             }
         }
 
-        private static async Task<string?> ReceiveFullMessage(WebSocket ws)
+        private async Task<string?> ReceiveFullMessage(WebSocket ws, string clientId)
         {
             using var ms = new MemoryStream();
             var buffer = new byte[1024];
@@ -183,8 +223,13 @@ namespace server
 
                 if (ms.Length > 4096)
                 {
-                    Console.WriteLine("Message too large. Closing connection on ({clientId}).");
-                    await ws.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Message too large", CancellationToken.None);
+                    if (clientId != null)
+                    {
+                        Console.WriteLine($"Message too large. Closing connection on ({clientId}).");
+                        await DisconnectClient(clientId, "Tried to send large data");
+                    }
+                    else // Fallback, as we might not always know the client id, and in this case it would fail
+                        await ws.CloseAsync(WebSocketCloseStatus.MessageTooBig, "Message too large.", CancellationToken.None);
 
                     return null;
                 }
@@ -210,13 +255,21 @@ namespace server
         }
         public async Task Send(WebSocket socket, byte[] data, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
         {
-            if(socket.State == WebSocketState.Open)
+            if (socket.State == WebSocketState.Open)
                 await socket.SendAsync(data, type, close, CancellationToken.None);
         }
         public async Task Send(WebSocket socket, string text, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
         {
             if (socket.State == WebSocketState.Open)
                 await socket.SendAsync(Encoding.UTF8.GetBytes(text), type, close, CancellationToken.None);
+        }
+        public async Task SendError(string clientId, string error)
+        {
+            await SendToClient(clientId, JsonSerializer.Serialize(new
+            {
+                type = "error",
+                message = error
+            }));
         }
         public async Task DisconnectClient(string clientId, string reason = "Disconnected by server")
         {
@@ -225,6 +278,13 @@ namespace server
                 Console.WriteLine($"Client disconnected ({clientId}), reason {reason}");
                 await con.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, CancellationToken.None);
                 connections.TryRemove(clientId, out _);
+
+                // This connection is no longer considered by this method
+                await Broadcast(JsonSerializer.Serialize(new
+                {
+                    type = "playerDisconnected",
+                    id = clientId,
+                }));
             }
         }
         public async Task Broadcast(string message)
@@ -239,22 +299,83 @@ namespace server
                 }
                 catch { }
         }
+        public async Task BroadcastExcept(string message, string except)
+        {
+            var data = Encoding.UTF8.GetBytes(message);
+
+            foreach (var con in connections)
+            {
+                if (con.Key == except)
+                    continue;
+
+                try
+                {
+                    if (con.Value.Socket.State == WebSocketState.Open)
+                        await con.Value.Socket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+                catch { }
+            }
+        }
 
         private async Task HeartbeatLoop()
         {
             while (true)
             {
-                var now = DateTime.UtcNow;
-                foreach (var con in connections)
+                try
                 {
-                    if ((now - con.Value.LastActivity).TotalSeconds > 30)
+                    var now = DateTime.UtcNow;
+                    foreach (var con in connections)
                     {
-                        Console.WriteLine($"Client timed out ({con.Key})");
-                        await con.Value.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Timeout", CancellationToken.None);
-                        connections.TryRemove(con.Key, out _);
+                        if ((now - con.Value.LastActivity).TotalSeconds > 30)
+                        {
+                            Console.WriteLine($"Client timed out ({con.Key})");
+                            await DisconnectClient(con.Key, "Player timed out");
+                        }
                     }
                 }
-                await Task.Delay(10000);
+                catch { }
+
+                await Task.Delay(10_000);
+            }
+        }
+        private async Task ServerLoop()
+        {
+            while (true)
+            {
+                try
+                {
+                    List<object> entities = [];
+
+                    foreach (var c in connections)
+                    {
+                        var p = c.Value.Player;
+
+                        if (p.DirtyMovement)
+                            entities.Add(new
+                            {
+                                id = c.Key,
+                                x = p.Position.X,
+                                y = p.Position.Y,
+                                type = "player"
+                            });
+
+                        p.DirtyMovement = false;
+                    }
+
+                    if (entities.Count > 0)
+                    {
+                        var data = JsonSerializer.Serialize(new
+                        {
+                            type = "entityUpdate",
+                            entities,
+                        });
+
+                        await Broadcast(data);
+                    }
+                }
+                catch { }
+
+                await Task.Delay(160);
             }
         }
 
@@ -265,18 +386,19 @@ namespace server
         }
     }
 
-    public class WebsocketConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey, string playerName)
+    public class WebsocketConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey, PlayerClient player)
     {
         public WebSocket Socket = socket;
         public DateTime LastActivity = lastActivity;
         public IPAddress IP = ip;
         public string SessionKey = sessionKey;
-        public string PlayerName = playerName;
+        public PlayerClient Player = player;
     }
 
-    public readonly struct PacketData(string ClientId, JsonElement Payload)
+    public readonly struct PacketData(string ClientId, JsonElement Payload, PlayerClient player)
     {
         public readonly string ClientId = ClientId;
         public readonly JsonElement Payload = Payload;
+        public readonly PlayerClient Player = player;
     }
 }

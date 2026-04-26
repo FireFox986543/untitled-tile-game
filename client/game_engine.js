@@ -185,6 +185,9 @@ function isCulled(point, size) {
 }
 function randomDir() { return Math.random() * Math.PI * 2; }
 
+function clamp(v, min, max) { return Math.max(Math.min(v, max), min); }
+function clamp01(v) { return clamp(v, 0, 1); }
+
 function arrayRemove(array, target) { array.splice(array.indexOf(target), 1); }
 
 // Extra utilities
@@ -278,11 +281,6 @@ function renderBackground() {
     let cellX = Math.floor(revTranslateX(viewport.viewLeft));
     let cellY = Math.floor(revTranslateY(viewport.viewTop));
 
-    /*if(cellX < 0)
-        cellX++;
-    if(cellY < 0)
-        cellY++;*/
-
     if (scene.scrollX <= toTileCoords(viewport.visibleWidth2))
         startX -= renderSize;
     if (scene.scrollY <= -toTileCoords(viewport.visibleHeight2))
@@ -303,11 +301,17 @@ function renderBackground() {
             const tileY = cellY - y;
 
             const tileID = scene.getTileAt(tileX, tileY);
-            const tileThis = tileIDToClip(tileID);
+            let tileThis = tileIDToClip(tileID);
 
             // Ooops, we are in air!
             if (tileID === 0)
                 continue;
+            // Handle cacti
+            else if (tileID === TILES.CACTUS && scene.getTileAt(tileX, tileY + 1) === TILES.AIR)
+                tileThis = tileIDToClip(256); // Note: 256 cannot be a tile id, but this represents the very last texture in the atlas
+            // Handle short grass
+            else if (tileID === TILES.SHORT_GRASS && scene.getTileAt(tileX, tileY + 1) === TILES.SHORT_GRASS)
+                tileThis = tileIDToClip(254); // Large grass texture
 
             const drawX = Math.ceil(startX + renderSize * x);
             const drawY = Math.ceil(startY + renderSize * y);

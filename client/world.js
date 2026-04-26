@@ -20,7 +20,7 @@ class World {
             return [null, x, y];
 
         // Convert the x coordinate into a chunkIdx
-        const chunkIdx = Math.floor(x / Chunk.chunkSizeX);
+        const chunkIdx = World.getChunkId(x);
         const chunk = this.getChunk(chunkIdx);
 
         // This x coordinate cannot be mapped onto an existing chunk
@@ -65,6 +65,7 @@ class World {
             chunkXY.y
         );
     }
+    static getChunkId(x) { return Math.floor(x / Chunk.chunkSizeX); }
 }
 
 class Chunk {
@@ -85,20 +86,48 @@ class SimpleChunkGenerator {
     static generateTestChunk(chunkIdx) {
         const tilemap = new Uint8Array(Chunk.totalSize);
 
-        for (let i = 0; i < tilemap.length; i++) {
-            const c = scene.getXYCoordsFromIdx(i);
-            const globalCoords = World.getXYFromChunkXY(c, chunkIdx);
-            const groundLevel = 20 + Math.round(Math.sin(globalCoords.x / 4.23) * 2.5 + Math.cos(globalCoords.x / 1.8) * .6);
-            let t = 0;
+        // Generate perlin terrain
+        for (let x = 0; x < Chunk.chunkSizeX; x++) {
+            const globalX = World.getXYFromChunkXY(new Vector2(x, 0), chunkIdx).x;
+            const groundLevel = Math.floor(fraction(Noise.perlin(globalX / 20 + 23.23454, 10.01, 30.01)) * 40);
+            const dirtAmount = Math.round(pseudo01(x - 354.52, groundLevel + 984.523, -68.654) + 3);
 
-            // Stone + 4 layers of dirt
-            if (c.y < groundLevel)
-                t = c.y >= groundLevel - 4 ? TILES.DIRT : TILES.STONE;
-            // At ground level there's grass
-            else if (c.y === groundLevel)
-                t = TILES.GRASS;
+            let flower = pseudo01(x + 45.45, groundLevel - 45.45, 3.435) < 0.1 ? TILES.TULIP : null;
+            let stoneMat = TILES.STONE;
+            let dirtMat = TILES.DIRT;
+            let grassMat = TILES.GRASS;
 
-            tilemap[i] = t;
+            // Desert biome
+            if (Noise.perlin(globalX / 40 + 832.168444, 486.325, -893.554) * 100 > 60) {
+                stoneMat = TILES.SANDSTONE;
+                dirtMat = TILES.SAND;
+                grassMat = TILES.SAND;
+                flower = pseudo01(x - 3425.23, groundLevel + 234.324, -5734.3) < 0.3 ? TILES.DEAD_PLANT : null;
+
+                if (!flower && pseudo01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1) {
+                    flower = TILES.CACTUS;
+
+                    for (let j = 1; j <= 3; j++)
+                        if (pseudo01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
+                            tilemap[scene.getIdxAtTile(x, groundLevel + j)] = flower;
+                        else
+                            break;
+                }
+            }
+            else if (!flower && pseudo01(x + 684.65, groundLevel - 84.3, -1011.8) < .7) {
+                flower = TILES.SHORT_GRASS;
+
+                if (pseudo01(x + 4856.86, groundLevel + 165.16, -35735.43) < .3)
+                    tilemap[scene.getIdxAtTile(x, groundLevel + 2)] = flower;
+            }
+
+            for (let y = 0; y < groundLevel; y++)
+                tilemap[scene.getIdxAtTile(x, y)] = (y >= groundLevel - dirtAmount) ? dirtMat : stoneMat;
+
+            tilemap[scene.getIdxAtTile(x, groundLevel)] = grassMat;
+
+            if (flower)
+                tilemap[scene.getIdxAtTile(x, groundLevel + 1)] = flower;
         }
 
         return new Chunk(chunkIdx, tilemap);
@@ -128,8 +157,10 @@ const TILES = Object.freeze({
     ANCIENT_THINGY2: 19,
     DARK_BRICKS: 20,
     DIAMOND_ORE: 21,
+    SANDSTONE: 22,
+    SHORT_GRASS: 23,
 
-    BORDER_TILE: 255
+    BORDER_TILE: 255,
 });
 const TILEPROPERTIES = Object.freeze({
     [TILES.AIR]: { solid: false, breakable: false },
@@ -153,7 +184,9 @@ const TILEPROPERTIES = Object.freeze({
     [TILES.ANCIENT_THINGY]: { solid: true, breakable: true },
     [TILES.ANCIENT_THINGY2]: { solid: true, breakable: true },
     [TILES.DARK_BRICKS]: { solid: true, breakable: true },
-    [TILES.DIAMOND_ORE]: { solid: true, breakable: true }
+    [TILES.DIAMOND_ORE]: { solid: true, breakable: true },
+    [TILES.SANDSTONE]: { solid: true, breakable: true },
+    [TILES.SHORT_GRASS]: { solid: false, breakable: true },
 });
 
 // HELPERS
