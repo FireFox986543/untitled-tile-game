@@ -73,13 +73,13 @@ namespace server
                 z %= repeat;
             }
 
-            int xi = (int)x & 255;
-            int yi = (int)y & 255;
-            int zi = (int)z & 255;
-            double xf = x - (int)x;
-            double yf = y - (int)y;
+            int xi = (int)Math.Floor(x) & 255;
+            int yi = (int)Math.Floor(y) & 255;
+            int zi = (int)Math.Floor(z) & 255;
+            double xf = x - (int)Math.Floor(x);
+            double yf = y - (int)Math.Floor(y);
+            double zf = z - (int)Math.Floor(z);
 
-            double zf = z - (int)z;
             double u = fade(xf);
             double v = fade(yf);
             double w = fade(zf);
@@ -142,13 +142,13 @@ namespace server
             double a = (s1 + 86454.54) + (s1 - 524.6565) * (s1 + 684.68);
             double b = (s2 + 68454.864) + (s2 - 9865.6385) * (s2 + 1486.385);
             double c = (s3 + 3572.8563) + (s3 - 5342.357) * (s3 + 6314.52);
-            double x = (int)a ^ (int)s1;
-            double y = (int)b ^ (int)s2 ^ (int)s3;
-            double z = (int)c ^ (int)a ^ (int)s1 + (int)c ^ (int)s2;
+            int x = ((int)a) ^ ((int)s1);
+            int y = ((int)b) ^ ((int)s2) ^ ((int)s3);
+            int z = ((int)c) ^ ((int)a) ^ ((int)(s1 + c)) ^ ((int)s2);
 
             return Math.Abs((x * y * z + a - s3 * y) % max);
         }
 
-        public static double Rand01(double s1, double s2, double s3) { return Rand(s1, s2, s3, 1000000) / 1000000; }
+        public static double Rand01(double s1, double s2, double s3) { return Rand(s1, s2, s3, 1000000d) / 1000000d; }
     }
 }

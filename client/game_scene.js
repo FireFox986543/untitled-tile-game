@@ -36,10 +36,19 @@ class MeinkraftGameScene extends Scene {
             this.brush = Math.max(this.brush - 1, 0);
 
         let selectedTile = new Vector2(Math.floor(revTranslateX(mousePosition.x)), Math.floor(revTranslateY(mousePosition.y)));
-        if (getMouseButton(0))
-            this.setTileAt(selectedTile.x, selectedTile.y, this.brush);
-        else if (getKeyDown(KeyCode.KeyE))
+        if (getMouseButton(0)) {
+            if (this.setTileAt(selectedTile.x, selectedTile.y, this.brush) && this.isMultiGame) {
+                const x = multiGame.tileChanges.find(c => c.x === selectedTile.x && c.y === selectedTile.y);
+
+                if (x)
+                    x.to = this.brush;
+                else
+                    multiGame.tileChanges.push({ x: selectedTile.x, y: selectedTile.y, to: this.brush });
+            }
+        }
+        else if (getKeyDown(KeyCode.KeyE)) {
             this.brush = this.getTileAt(selectedTile.x, selectedTile.y);
+        }
 
         if (animationNow() >= this.#sceneEnds) {
             loadScene(this.#nextScene);

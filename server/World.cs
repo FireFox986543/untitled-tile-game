@@ -6,6 +6,7 @@ namespace server
     {
         public const float gravity = -9.81f;
         public Dictionary<int, Chunk> chunks;
+        public List<object> dirtyChanges = [];
 
         public World()
         {
@@ -64,16 +65,17 @@ namespace server
             // Get the tile from that chunk
             return chunk.chunkTiles[GetIdxAtTile(cx, cy)];
         }
-        public void SetGlobalTileAt(float x, float y, byte tile)
+        public bool SetGlobalTileAt(float x, float y, byte tile)
         {
             GetChunkSpace(x, y, out Chunk? chunk, out int cx, out int cy);
 
             // The coordinates couldn't be mapped onto existing chunks or is at outside of the bounds
             if (chunk == null)
-                return;
+                return false;
 
             // Set the tile from that chunk
             chunk.chunkTiles[GetIdxAtTile(cx, cy)] = tile;
+            return true;
         }
 
         public static Vector2 GetXYFromChunkXY(Vector2 chunkXY, int chunkID)
@@ -125,14 +127,18 @@ namespace server
         public const byte DIAMOND_ORE = 21;
         public const byte SANDSTONE = 22;
         public const byte SHORT_GRASS = 23;
+        public const byte LADDER = 24;
+        public const byte BOULDERS = 25;
+        public const byte DRY_GRASS = 26;
 
         public const byte BORDER_TILE = 255;
     }
 
-    public struct TileProperty(bool solid, bool breakable)
+    public struct TileProperty(bool solid, bool breakable, bool climbable = false)
     {
         public bool solid = solid;
         public bool breakable = breakable;
+        public bool climbable = climbable;
     }
 
     public static class TILEPROPERITES
@@ -163,6 +169,9 @@ namespace server
             { TILES.DIAMOND_ORE, new( true, true) },
             { TILES.SANDSTONE, new( true, true) },
             { TILES.SHORT_GRASS, new( false, true) },
+            { TILES.LADDER, new( false, true, true) },
+            { TILES.BOULDERS, new( false, true) },
+            { TILES.DRY_GRASS, new( false, true) },
         };
     }
 }

@@ -11,17 +11,32 @@ namespace server
         public const float MinPlayerPacketInterval = 100; // In milliseconds
         public static World world;
 
+        public static readonly bool savingEnabled = true;
+
+        public const string saveFile = "save.bin";
+
         static void Main(string[] args)
         {
             Console.WriteLine("Generating world...");
-            world = new World();
 
-            for (int i = -10; i <= 10; i++)
-                world.AddChunk(Worldgen.GenerateSimpleChunk(i));
+            if (savingEnabled && File.Exists(saveFile))
+            {
+                using var fs = File.OpenRead(saveFile);
+                Console.WriteLine($"Loaded world save {fs.Length} bytes");
+                world = WorldSaving.GetWorld(fs);
+            }
+            else
+            {
+                Console.WriteLine("Generating new world...");
+                world = new();
 
-            Console.WriteLine($"World generated with {world.chunks.Count} chunks!");
+                for (int i = -10; i <= 10; i++)
+                    world.AddChunk(Worldgen.GenerateSimpleChunk(i));
+            }
 
-            var server = new WebSocketServer("http://192.168.1.65:5123/");
+            Console.WriteLine($"World has {world.chunks.Count} chunks!");
+
+            var server = new WebSocketServer("http://+:5123/");
             server.AttachPacketHandler("chunkRequest", async data =>
             {
                 try
@@ -105,7 +120,7 @@ namespace server
                             // To prevent the player from getting chunks too far way we limit the number of chunks that could be sent
                             if (Math.Abs(id - playerChunkId) <= MaxChunkDistanceServe)
                             {
-                                if(!TryToServeChunk(id, true, out var bytes))
+                                if (!TryToServeChunk(id, true, out var bytes))
                                     throw new Exception("Failed to generate or serve the requested chunk!");
 
                                 chunksToSend.Add(new
@@ -136,10 +151,10 @@ namespace server
             {
                 try
                 {
-                    if(DateTime.UtcNow - data.Player.LastMovementPacket < TimeSpan.FromMilliseconds(MinPlayerPacketInterval))
+                    if (DateTime.UtcNow - data.Player.LastMovementPacket < TimeSpan.FromMilliseconds(MinPlayerPacketInterval))
                         throw new MovementPacketException("Too many movement packets sent!");
 
-                    if(data.Payload.TryGetProperty("x", out var xProp) && data.Payload.TryGetProperty("y", out var yProp))
+                    if (data.Payload.TryGetProperty("x", out var xProp) && data.Payload.TryGetProperty("y", out var yProp))
                     {
                         var x = xProp.GetSingle();
                         var y = yProp.GetSingle();
@@ -170,6 +185,48 @@ namespace server
                     await server.SendError(data.ClientId, ex.Message);
                 }
             });
+            server.AttachPacketHandler("tileModify", async data =>
+            {
+                try
+                {
+                    if (data.Payload.TryGetProperty("changes", out var changesProp))
+                        foreach (var c in changesProp.EnumerateArray())
+                        {
+                            if (c.TryGetProperty("x", out var xProp) &&
+                                c.TryGetProperty("y", out var yProp) &&
+                                c.TryGetProperty("to", out var toProp))
+                            {
+                                var x = xProp.GetSingle();
+                                var y = yProp.GetSingle();
+                                var to = toProp.GetByte();
+
+                                if (!world.SetGlobalTileAt(x, y, to))
+                                    throw new Exception($"Failed to set tile at {x} {y}");
+
+                                world.dirtyChanges.Add(new { x, y, to });
+                            }
+                            else
+                                throw new Exception("Tile modify packet contains invalid modifications");
+                        }
+                }
+                catch (Exception ex)
+                {
+                    await server.SendError(data.ClientId, ex.Message);
+                }
+            });
+
+            if (savingEnabled)
+                Console.CancelKeyPress += (_, _) =>
+                {
+                    Console.WriteLine("Saving world...");
+                    var save = WorldSaving.GetBytes(world);
+                    Console.WriteLine("Saved world. Size " + save.Length);
+
+                    File.WriteAllBytes("save.bin", save);
+
+                    Environment.Exit(0);
+                };
+
             server.StartServer().GetAwaiter().GetResult();
 
             Console.WriteLine("Shutting down...");
@@ -195,7 +252,7 @@ namespace server
             {
                 gzip.Write(chunk.chunkTiles, 0, chunk.chunkTiles.Length);
             }
-            
+
             outChunk = Convert.ToBase64String(ms.ToArray());
             return true;
         }

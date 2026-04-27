@@ -31,15 +31,22 @@ namespace server
                     grassMat = TILES.SAND;
                     flower = Pseudo.Rand01(x - 3425.23, groundLevel + 234.324, -5734.3) < 0.3 ? TILES.DEAD_PLANT : TILES.AIR;
 
-                    if (flower != TILES.AIR && Pseudo.Rand01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1)
+                    if (flower == TILES.AIR)
                     {
-                        flower = TILES.CACTUS;
+                        if (Pseudo.Rand01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1)
+                        {
+                            flower = TILES.CACTUS;
 
-                        for (int j = 1; j <= 3; j++)
-                            if (Pseudo.Rand01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
-                                tilemap[World.GetIdxAtTile(x, groundLevel + j)] = flower;
-                            else
-                                break;
+                            for (int j = 1; j <= 3; j++)
+                                if (Pseudo.Rand01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
+                                    tilemap[World.GetIdxAtTile(x, groundLevel + j)] = flower;
+                                else
+                                    break;
+                        }
+                        else if (Pseudo.Rand01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .6)
+                            flower = TILES.DRY_GRASS;
+                        else if (Pseudo.Rand01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .72)
+                            flower = TILES.BOULDERS;
                     }
                 }
                 else if (flower == TILES.AIR && Pseudo.Rand01(x + 684.65, groundLevel - 84.3, -1011.8) < .7)

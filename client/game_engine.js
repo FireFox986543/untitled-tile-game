@@ -76,7 +76,7 @@ async function requestImages() {
         'tileAtlas': 'src/tileAtlas.png',
         'uiAtlas': 'src/uiAtlas.png',
         'grid': 'src/grid.png',
-        'player': 'src/player.png'
+        'player': 'src/PlayerRidi.png'
     }
     let loaded = 0;
 
@@ -234,7 +234,7 @@ function renderEntities(dt) {
     const transf = ctx.getTransform();
     for (let i = 0; i < scene.entities.length; i++) {
         const e = scene.entities[i];
-        if (!isCulled(translatePoint(e.position), e.size)) {
+        if (!isCulled(translatePoint(e.position), e.screenSize)) {
             e.render(dt, images, transf);
             ctx.setTransform(transf); // Reset the transform after every entity
         }
@@ -312,6 +312,8 @@ function renderBackground() {
             // Handle short grass
             else if (tileID === TILES.SHORT_GRASS && scene.getTileAt(tileX, tileY + 1) === TILES.SHORT_GRASS)
                 tileThis = tileIDToClip(254); // Large grass texture
+            else if (tileID === TILES.DRY_GRASS && fastPseudo(tileX, tileY, 64.465, 100) % 3 === 0)
+                tileThis = tileIDToClip(253) // Dry grass second variation texture
 
             const drawX = Math.ceil(startX + renderSize * x);
             const drawY = Math.ceil(startY + renderSize * y);

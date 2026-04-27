@@ -20,7 +20,7 @@ class Entity {
 
 class PlayerEntity extends Entity {
 
-    static get playerSize() { return new Size(.5, 1.7); };
+    static get playerSize() { return new Size(.5, 1.8); };
 
     get chunkId() { return World.getChunkId(this.position.x); }
 
@@ -31,10 +31,12 @@ class PlayerEntity extends Entity {
         this.lastHorizontal = 0;
         this.velocity = new Vector2(0, 0);
         this.onGround = false;
+        this.inLadder = false;
 
         this.lastChunkId = undefined;
         this.lastPosition = undefined;
         this.lastMovementPacket = scene.gameTime;
+        this.lastTileChangePacket = scene.gameTime;
 
         this.collision = {
             points: [
@@ -60,16 +62,35 @@ class PlayerEntity extends Entity {
         this.horizontal = h;
     }
     update(dt) {
-        // Handle gravity
-        if (this.onGround) {
-            if (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW))
-                this.velocity.y = 6.8;
+        this.inLadder = false;
+
+        // Check if the player is inside a ladder
+        this.collision.points.forEach(p => {
+            const dt = this.getPropertiesAt(this.position.add(p));
+            this.inLadder ||= !!dt.climbable;
+        });
+
+        if (this.inLadder) {
+            // Handle movement in ladder
+            const vertical = (getKey(KeyCode.KeyW) ? 1 : 0) + (getKey(KeyCode.KeyS) ? -1 : 0);
+
+            if(vertical !== 0)
+                this.velocity.y = clamp(this.velocity.y + vertical / 2, -2, 2);
             else
-                // Push the player just a touch bit down to make sure the contact with the ground is maintained
-                this.velocity.y = -0.1;
+                this.velocity.y *= 0.95;
         }
-        else
-            this.velocity.y += World.gravity * dt;
+        else {
+            // Handle gravity
+            if (this.onGround) {
+                if (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW))
+                    this.velocity.y = 6.8;
+                else
+                    // Push the player just a touch bit down to make sure the contact with the ground is maintained
+                    this.velocity.y = -0.1;
+            }
+            else
+                this.velocity.y += World.gravity * dt;
+        }
 
         // Move the player along the x axis based on the velocities
         // If we've stopped or changed directions
@@ -85,36 +106,42 @@ class PlayerEntity extends Entity {
             // And by this way we could determine if we're grounded by checking if we moved down did we hit anything? 
             let hitCollider = this.tryToMove(this.velocity.y > 0 ? DIRECTION.NORTH : DIRECTION.SOUTH, Math.abs(this.velocity.y) * dt);
             this.onGround = this.velocity.y < 0 && hitCollider;
-            
+
             // If we hit the ceiling, give the player a little "headbump" ;D
-            if(hitCollider && this.velocity.y > 0)
+            if (hitCollider && this.velocity.y > 0)
                 this.velocity.y = -1;
         }
         if (Math.abs(this.velocity.x) > 0.01) {
             let hitCollider = this.tryToMove(this.velocity.x > 0 ? DIRECTION.EAST : DIRECTION.WEST, Math.abs(this.velocity.x) * dt);
 
             // If we hit a wall, stop the player from going horizontally
-            if(hitCollider)
+            if (hitCollider)
                 this.velocity.x = 0;
         }
 
-        if(multiGame) {
-            if(this.chunkId !== this.lastChunkId && this.lastChunkId !== undefined) {
+        if (multiGame) {
+            if (this.chunkId !== this.lastChunkId && this.lastChunkId !== undefined) {
                 multiGame.requestEmptyChunks();
                 multiGame.cleanUpChunks();
             }
 
-            if(this.position !== this.lastPosition && ((scene.gameTime - this.lastMovementPacket) > .13)) {
+            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .13) {
                 multiGame.sendMovementPacket();
                 this.lastMovementPacket = scene.gameTime;
                 this.lastPosition = this.position;
+            }
+
+            if (multiGame.tileChanges.length > 0 && scene.gameTime - this.lastTileChangePacket > .33) {
+                multiGame.sendTileChanges();
+                this.lastTileChangePacket = scene.gameTime;
             }
         }
 
         this.lastChunkId = this.chunkId;
     }
     render(dt, images) {
-        ctx.drawImage(images['player'], this.clip.x, this.clip.y, this.clip.width, this.clip.height, this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
+        //ctx.drawImage(images['player'], this.clip.x, this.clip.y, this.clip.width, this.clip.height, this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
+        ctx.drawImage(images['player'], this.screenX - this.screenSize.width / 2, this.screenY, this.screenSize.width * 2, this.screenSize.height);
 
         if (!scene.DEBUG) return;
         let screenPosition = translatePoint(this.position);
@@ -170,12 +197,16 @@ class PlayerEntity extends Entity {
         this.position = pos;
         return hitAnything;
     }
-    checkForCollision(point) { return getTileProperties(scene.getTileAt(Math.floor(point.x), Math.floor(point.y))).solid; }
+    getPropertiesAt(point) {
+        const p = getTileProperties(scene.getTileAt(Math.floor(point.x), Math.floor(point.y)));
+        return p;
+    }
     collided(points, origin) {
         let collided = false;
 
         points.forEach(p => {
-            if (this.checkForCollision(origin.add(p)))
+            const dt = this.getPropertiesAt(origin.add(p));
+            if(dt.solid)
                 collided = true;
         });
 

@@ -165,7 +165,7 @@ namespace server
                             players = playerList,
                         });
 
-                        await Send(ws, sendData);
+                        await connections[clientId].SendSafely(sendData);
 
                         Console.WriteLine($"Authenticated: {clientId}");
 
@@ -242,26 +242,13 @@ namespace server
         }
         public async Task SendToClient(string clientId, string message)
         {
-            if (connections.TryGetValue(clientId, out var con) && con.Socket.State == WebSocketState.Open)
-            {
-                var data = Encoding.UTF8.GetBytes(message);
-                await con.Socket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
-            }
+            if (connections.TryGetValue(clientId, out var con))
+                await con.SendSafely(message);
         }
         public async Task SendToClientBytes(string clientId, byte[] data, WebSocketMessageType type = WebSocketMessageType.Text)
         {
-            if (connections.TryGetValue(clientId, out var con) && con.Socket.State == WebSocketState.Open)
-                await con.Socket.SendAsync(data, type, true, CancellationToken.None);
-        }
-        public async Task Send(WebSocket socket, byte[] data, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
-        {
-            if (socket.State == WebSocketState.Open)
-                await socket.SendAsync(data, type, close, CancellationToken.None);
-        }
-        public async Task Send(WebSocket socket, string text, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
-        {
-            if (socket.State == WebSocketState.Open)
-                await socket.SendAsync(Encoding.UTF8.GetBytes(text), type, close, CancellationToken.None);
+            if (connections.TryGetValue(clientId, out var con))
+                await con.SendSafely(data, type);
         }
         public async Task SendError(string clientId, string error)
         {
@@ -294,8 +281,8 @@ namespace server
             foreach (var con in connections)
                 try
                 {
-                    if (con.Value.Socket.State == WebSocketState.Open)
-                        await con.Value.Socket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
+                    // Note: To avoid holding up the server's work by potentially waiting, we MUST NOT await this send
+                    _ = con.Value.SendSafely(data);
                 }
                 catch { }
         }
@@ -310,8 +297,8 @@ namespace server
 
                 try
                 {
-                    if (con.Value.Socket.State == WebSocketState.Open)
-                        await con.Value.Socket.SendAsync(data, WebSocketMessageType.Text, true, CancellationToken.None);
+                    // Note: To avoid holding up the server's work by potentially waiting, we MUST NOT await this send
+                    _ = con.Value.SendSafely(data);
                 }
                 catch { }
             }
@@ -372,6 +359,18 @@ namespace server
 
                         await Broadcast(data);
                     }
+
+                    if (Program.world.dirtyChanges.Count > 0)
+                    {
+                        var data = JsonSerializer.Serialize(new
+                        {
+                            type = "tileUpdate",
+                            changes = Program.world.dirtyChanges
+                        });
+
+                        Program.world.dirtyChanges.Clear();
+                        await Broadcast(data);
+                    }
                 }
                 catch { }
 
@@ -393,6 +392,35 @@ namespace server
         public IPAddress IP = ip;
         public string SessionKey = sessionKey;
         public PlayerClient Player = player;
+
+        public SemaphoreSlim sendPool = new(1, 1);
+
+        /// This is used to avoid C# complaining about more than one concurrent send tasks happening at a time
+        public async Task SendSafely(byte[] data, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
+        {
+            if (Socket.State != WebSocketState.Open)
+                return;
+
+            // Wait if we're already sending a message
+            await sendPool.WaitAsync();
+
+            try
+            {
+                await Socket.SendAsync(data, type, close, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error happened while trying to send data to websocket! " + ex.Message);
+            }
+            finally
+            {
+                sendPool.Release();
+            }
+        }
+        public async Task SendSafely(string data, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
+        {
+            await SendSafely(Encoding.UTF8.GetBytes(data), type, close);
+        }
     }
 
     public readonly struct PacketData(string ClientId, JsonElement Payload, PlayerClient player)

@@ -65,6 +65,7 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
         playerSkin: playerSkin,
 
         players: [],
+        tileChanges: [],
 
         onClose: null,
 
@@ -122,12 +123,16 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
         sendMovementPacket: () => {
             socket.send(JSON.stringify({ type: 'playerMovement', x: scene.player.position.x, y: scene.player.position.y }));
         },
+        sendTileChanges: () => {
+            socket.send(JSON.stringify({ type: 'tileModify', changes: multiGame.tileChanges }));
+            multiGame.tileChanges.length = 0;
+        },
         _registerNewPlayer: (pl, pushToScene) => {
             const p = new MultiPlayerEntity(new Vector2(pl.x, pl.y), pl.id, pl.playerName, pl.playerSkin || 0);
 
             multiGame.players.push(p);
 
-            if(pushToScene)
+            if (pushToScene)
                 scene.entities.push(p);
         }
     };
@@ -140,7 +145,7 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
         socket.send(JSON.stringify({ type: 'chunkRequest', range: 'player' }));
     });
     socket.addEventListener('close', (e) => {
-        console.log('Disconnected from server' + (e.reason ? `: ${e.reason}` : ''));
+        console.log('Disconnected from server', e.reason);
 
         multiGame?.closeConnection();
     });
@@ -220,6 +225,19 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
                     }
                 });
 
+                break;
+            case 'tileUpdate':
+                data.changes.forEach(c => {
+                    const x = c.x;
+                    const y = c.y;
+                    const to = c.to;
+
+                    if (x == null || y == null || to == null)
+                        throw new Error("Received invalid tile update!");
+
+                    if (!scene.setTileAt(x, y, to))
+                        console.warn(`Chunk doesn't exist for this tile update ${x} ${y}`);
+                });
                 break;
             default:
                 break;

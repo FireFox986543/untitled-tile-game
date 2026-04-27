@@ -53,10 +53,11 @@ class World {
 
         // The coordinates couldn't be mapped onto existing chunks or is at outside of the bounds
         if (chunk == null)
-            return;
+            return false;
 
         // Set the tile from that chunk
         chunk.chunkTiles[scene.getIdxAtTile(cx, cy)] = tile;
+        return true;
     }
 
     static getXYFromChunkXY(chunkXY, chunkID) {
@@ -104,14 +105,20 @@ class SimpleChunkGenerator {
                 grassMat = TILES.SAND;
                 flower = pseudo01(x - 3425.23, groundLevel + 234.324, -5734.3) < 0.3 ? TILES.DEAD_PLANT : null;
 
-                if (!flower && pseudo01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1) {
-                    flower = TILES.CACTUS;
+                if (!flower) {
+                    if (pseudo01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1) {
+                        flower = TILES.CACTUS;
 
-                    for (let j = 1; j <= 3; j++)
-                        if (pseudo01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
-                            tilemap[scene.getIdxAtTile(x, groundLevel + j)] = flower;
-                        else
-                            break;
+                        for (let j = 1; j <= 3; j++)
+                            if (pseudo01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
+                                tilemap[scene.getIdxAtTile(x, groundLevel + j)] = flower;
+                            else
+                                break;
+                    }
+                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .6)
+                        flower = TILES.DRY_GRASS;
+                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .72)
+                        flower = TILES.BOULDERS;
                 }
             }
             else if (!flower && pseudo01(x + 684.65, groundLevel - 84.3, -1011.8) < .7) {
@@ -159,6 +166,9 @@ const TILES = Object.freeze({
     DIAMOND_ORE: 21,
     SANDSTONE: 22,
     SHORT_GRASS: 23,
+    LADDER: 24,
+    BOULDERS: 25,
+    DRY_GRASS: 26,
 
     BORDER_TILE: 255,
 });
@@ -187,6 +197,9 @@ const TILEPROPERTIES = Object.freeze({
     [TILES.DIAMOND_ORE]: { solid: true, breakable: true },
     [TILES.SANDSTONE]: { solid: true, breakable: true },
     [TILES.SHORT_GRASS]: { solid: false, breakable: true },
+    [TILES.LADDER]: { solid: false, breakable: true, climbable: true },
+    [TILES.BOULDERS]: { solid: false, breakable: true, },
+    [TILES.DRY_GRASS]: { solid: false, breakable: true, },
 });
 
 // HELPERS

@@ -55,8 +55,6 @@ class Noise {
         return t * t * t * (t * (t * 6 - 15) + 10);
     }
 
-    static #f(x) { return Math.trunc(x); }
-
     static perlin(x, y, z, repeat = -1) {
         this.#repeat = repeat;
 
@@ -66,13 +64,13 @@ class Noise {
             z %= repeat;
         }
 
-        let xi = this.#f(x) & 255;
-        let yi = this.#f(y) & 255;
-        let zi = this.#f(z) & 255;
-        let xf = x - this.#f(x);
-        let yf = y - this.#f(y);
+        let xi = Math.floor(x) & 255;
+        let yi = Math.floor(y) & 255;
+        let zi = Math.floor(z) & 255;
+        let xf = x - Math.floor(x);
+        let yf = y - Math.floor(y);
+        let zf = z - Math.floor(z);
 
-        let zf = z - this.#f(z);
         let u = this.#fade(xf);
         let v = this.#fade(yf);
         let w = this.#fade(zf);
@@ -131,5 +129,7 @@ function pseudo(s1, s2, s3, max = 1000000) {
 
     return Math.abs((x * y * z + a - s3 * y) % max);
 }
+
+function fastPseudo(s1, s2, s3, max = 10) { return Math.abs(s1 ^ (s2 * (s3 - s1) ^ s1) * (s1 + 1) ^ s3 * (s2 + 1) ^ (s3 + 1)) % max; }
 
 function pseudo01(s1, s2, s3) { return pseudo(s1, s2, s3, 1000000) / 1000000; }
