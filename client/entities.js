@@ -20,7 +20,7 @@ class Entity {
 
 class PlayerEntity extends Entity {
 
-    static get playerSize() { return new Size(.5, 1.8); };
+    static get playerSize() { return new Size(.45, 1.8); };
 
     get chunkId() { return World.getChunkId(this.position.x); }
 
@@ -32,6 +32,8 @@ class PlayerEntity extends Entity {
         this.velocity = new Vector2(0, 0);
         this.onGround = false;
         this.inLadder = false;
+        this.jumpTime = 0;
+        this.animation = '';
 
         this.lastChunkId = undefined;
         this.lastPosition = undefined;
@@ -74,7 +76,7 @@ class PlayerEntity extends Entity {
             // Handle movement in ladder
             const vertical = (getKey(KeyCode.KeyW) ? 1 : 0) + (getKey(KeyCode.KeyS) ? -1 : 0);
 
-            if(vertical !== 0)
+            if (vertical !== 0)
                 this.velocity.y = clamp(this.velocity.y + vertical / 2, -2, 2);
             else
                 this.velocity.y *= 0.95;
@@ -82,14 +84,22 @@ class PlayerEntity extends Entity {
         else {
             // Handle gravity
             if (this.onGround) {
-                if (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW))
+                if (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW)) {
                     this.velocity.y = 6.8;
-                else
+                    this.animation = 'jumping';
+                }
+                else {
                     // Push the player just a touch bit down to make sure the contact with the ground is maintained
                     this.velocity.y = -0.1;
+
+                    if (this.animation === 'jumping')
+                        this.animation = 'idle';
+                }
             }
             else
                 this.velocity.y += World.gravity * dt;
+
+                this.jumpTime = this.animation === 'jumping' ? this.jumpTime + dt : 0;
         }
 
         // Move the player along the x axis based on the velocities
@@ -119,6 +129,13 @@ class PlayerEntity extends Entity {
                 this.velocity.x = 0;
         }
 
+        if (this.animation !== 'jumping') {
+            if (Math.abs(this.velocity.x) > 0.001)
+                this.animation = 'walking';
+            else
+                this.animation = 'idle';
+        }
+
         if (multiGame) {
             if (this.chunkId !== this.lastChunkId && this.lastChunkId !== undefined) {
                 multiGame.requestEmptyChunks();
@@ -140,8 +157,94 @@ class PlayerEntity extends Entity {
         this.lastChunkId = this.chunkId;
     }
     render(dt, images) {
-        //ctx.drawImage(images['player'], this.clip.x, this.clip.y, this.clip.width, this.clip.height, this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
-        ctx.drawImage(images['player'], this.screenX - this.screenSize.width / 2, this.screenY, this.screenSize.width * 2, this.screenSize.height);
+        const width = this.screenSize.width * 2;
+        const height = this.screenSize.height;
+
+        let upperOffsetY = 0;
+        let upperOffsetX = 0;
+        let armRR, armLR, legRR, legLR;
+
+        const drawLeg = (n, x, r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width * n + width / 8 + upperOffsetX, this.screenY + height * .625 + upperOffsetY);
+            ctx.rotate(r);
+            ctx.drawImage(images['player'], 4 + x, 20, 4, 12, -width / 8, 0, width / 4, height * .375);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'red');
+                line(Vector2.zero, new Vector2(0, 100), 'brown');
+            }
+
+            ctx.restore();
+        }
+        const drawTorso = () => {
+            ctx.save();
+            ctx.translate(this.screenX + width / 4 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.drawImage(images['player'], 4, 8, 8, 12, -width / 4, 0, width / 2, height * .375);
+
+            if (scene.DEBUG)
+                fillCircle(0, 0, 2, 'blue');
+
+            ctx.restore();
+        };
+        const drawHead = (r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width / 4 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.rotate(r);
+            // NOTE: this one's height should be 8 pixels from the source image, but to avoid rendering issues, we want to set it at almost 8 - that's why it's set at 7.9
+            ctx.drawImage(images['player'], 0, 0, 16, 7.9, -width / 2, -height * .25, width, height * .25);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'green');
+                line(Vector2.zero, new Vector2(0, 100), 'cyan');
+            }
+
+            ctx.restore();
+        };
+        const drawHands = (n, x, r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width * n - width * .125 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.rotate(r);
+            ctx.drawImage(images['player'], 0 + x, 8, 4, 12, -width * .125, 0, width / 4, height * .375);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'red');
+                line(Vector2.zero, new Vector2(0, 100), 'brown');
+            }
+
+            ctx.restore();
+        }
+
+        /*if (this.animation === 'walking') {
+            upperOffsetX = Math.pow(Math.sin(animationNow() * 8 * 2), 4) * 4;
+            upperOffsetY = Math.pow(Math.sin(animationNow() * 8), 4) * 4 - 2
+            armLR = Math.pow(Math.sin(animationNow() * 18), 4) * .3 + .3;
+            armRR = Math.pow(Math.sin(animationNow() * 18), 4) * -.3 - .3;
+            legLR = Math.pow(Math.cos(animationNow() * 18), 4) * .3 + .12;
+            legRR = Math.pow(Math.cos(animationNow() * 18), 4) * -.3 - .12;
+
+            const multiplier = clamp01(Math.abs(this.velocity.x / 2));
+
+            armLR *= multiplier;
+            armRR *= multiplier;
+            legLR *= multiplier;
+            legRR *= multiplier;
+        }
+        else {
+            upperOffsetX = 0;
+            upperOffsetY = 0;
+            armLR = 0;
+            armRR = 0;
+            legLR = 0;
+            legRR = 0;
+        }*/
+
+        drawLeg(0, 0, legLR); // Draw left leg (4, 20)
+        drawLeg(.25, 4, legRR); // Draw right leg (8, 20)
+        drawTorso();
+        drawHead();
+        drawHands(0, 0, armLR); // Draw left hand
+        drawHands(.75, 12, armRR); // Draw right hand
 
         if (!scene.DEBUG) return;
         let screenPosition = translatePoint(this.position);
@@ -206,7 +309,7 @@ class PlayerEntity extends Entity {
 
         points.forEach(p => {
             const dt = this.getPropertiesAt(origin.add(p));
-            if(dt.solid)
+            if (dt.solid)
                 collided = true;
         });
 
