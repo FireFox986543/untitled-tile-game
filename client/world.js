@@ -90,7 +90,7 @@ class SimpleChunkGenerator {
         // Generate perlin terrain
         for (let x = 0; x < Chunk.chunkSizeX; x++) {
             const globalX = World.getXYFromChunkXY(new Vector2(x, 0), chunkIdx).x;
-            const groundLevel = Math.floor(fraction(Noise.perlin(globalX / 20 + 23.23454, 10.01, 30.01)) * 40);
+            const groundLevel = Math.floor(fraction(Noise.perlin(globalX / 20 + 23.23454, 10.01, 30.01)) * 40) + 110;
             const dirtAmount = Math.round(pseudo01(x - 354.52, groundLevel + 984.523, -68.654) + 3);
 
             let flower = pseudo01(x + 45.45, groundLevel - 45.45, 3.435) < 0.1 ? TILES.TULIP : null;
@@ -135,6 +135,17 @@ class SimpleChunkGenerator {
 
             if (flower)
                 tilemap[scene.getIdxAtTile(x, groundLevel + 1)] = flower;
+        }
+
+        // Carvers
+        for (let x = 0; x < Chunk.chunkSizeX; x++) {
+            for (let y = 0; y < Chunk.chunkSizeY; y++) {
+                const global = World.getXYFromChunkXY(new Vector2(x, y), chunkIdx)
+                const idx = scene.getIdxAtTile(x, y);
+
+                if(Noise.perlin(global.x / 20 + 46.564, global.y / 20 - 846.35, -464.84) < .42 - clamp01(y / 1200))
+                    tilemap[idx] = 0;
+            }
         }
 
         return new Chunk(chunkIdx, tilemap);

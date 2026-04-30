@@ -15,7 +15,7 @@ namespace server
             for (int x = 0; x < Chunk.chunkSizeX; x++)
             {
                 int globalX = (int)World.GetXYFromChunkXY(new Vector2(x, 0), chunkIdx).X;
-                int groundLevel = (int)Math.Floor(PerlinNoise.Perlin(globalX / 20.0 + 23.23454, 10.01, 30.01) * 40.0);
+                int groundLevel = (int)Math.Floor(PerlinNoise.Perlin(globalX / 20.0 + 23.23454, 10.01, 30.01) * 40.0) + 110;
                 int dirtAmount = (int)Math.Round(Pseudo.Rand01(x - 354.52, groundLevel + 984.523, -68.654) + 3.0);
 
                 byte flower = Pseudo.Rand01(x + 45.45, groundLevel - 45.45, 3.435) < 0.1 ? TILES.TULIP : TILES.AIR;
@@ -64,6 +64,18 @@ namespace server
 
                 if (flower != TILES.AIR)
                     tilemap[World.GetIdxAtTile(x, groundLevel + 1)] = flower;
+            }
+
+            for (int x = 0; x < Chunk.chunkSizeX; x++)
+            {
+                for (int y = 0; y < Chunk.chunkSizeY; y++)
+                {
+                    var global = World.GetXYFromChunkXY(new Vector2(x, y), chunkIdx);
+                    var idx = World.GetIdxAtTile(x, y);
+
+                    if (PerlinNoise.Perlin(global.X / 20.0 + 46.564, global.Y / 20.0 - 846.35, -464.84) < .42 - Math.Clamp(y / 1200.0, 0, 1))
+                        tilemap[idx] = 0;
+                }
             }
 
             return new Chunk(chunkIdx, tilemap);

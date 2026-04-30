@@ -10,6 +10,7 @@ namespace server
         public const float MaxPlayerMovement = 20f;
         public const float MinPlayerPacketInterval = 100; // In milliseconds
         public static World world;
+        public static WebSocketServer server;
 
         public static readonly bool savingEnabled = true;
 
@@ -17,26 +18,59 @@ namespace server
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Generating world...");
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    var k = Console.ReadKey(true);
+
+                    if (!char.IsControl(k.KeyChar))
+                    {
+                        input = input[..cursor] + k.KeyChar + input[cursor..];
+                        cursor++;
+                    }
+                    else if (k.Key == ConsoleKey.Backspace && input.Length > 0 && cursor > 0)
+                    {
+                        input = input[..(cursor - 1)] + input[cursor..];
+                        cursor--;
+                    }
+                    else if (k.Key == ConsoleKey.Delete && input.Length > 0 && cursor < input.Length)
+                        input = input[..cursor] + input[(cursor + 1)..];
+                    else if (k.Key == ConsoleKey.LeftArrow && cursor > 0)
+                        cursor--;
+                    else if (k.Key == ConsoleKey.RightArrow && cursor < input.Length)
+                        cursor++;
+                    else if (k.Key == ConsoleKey.Enter)
+                    {
+                        Commands.Execute(input);
+                        input = "";
+                        cursor = 0;
+                    }
+
+                    DisplayInput();
+                }
+            });
+
+            WriteLine("Generating world...");
 
             if (savingEnabled && File.Exists(saveFile))
             {
                 using var fs = File.OpenRead(saveFile);
-                Console.WriteLine($"Loaded world save {fs.Length} bytes");
+                WriteLine($"Loaded world save {fs.Length} bytes");
                 world = WorldSaving.GetWorld(fs);
             }
             else
             {
-                Console.WriteLine("Generating new world...");
+                WriteLine("Generating new world...");
                 world = new();
 
                 for (int i = -10; i <= 10; i++)
                     world.AddChunk(Worldgen.GenerateSimpleChunk(i));
             }
 
-            Console.WriteLine($"World has {world.chunks.Count} chunks!");
+            WriteLine($"World has {world.chunks.Count} chunks!");
 
-            var server = new WebSocketServer("http://+:5123/");
+            server = new WebSocketServer("http://+:5123/");
             server.AttachPacketHandler("chunkRequest", async data =>
             {
                 try
@@ -218,18 +252,14 @@ namespace server
             if (savingEnabled)
                 Console.CancelKeyPress += (_, _) =>
                 {
-                    Console.WriteLine("Saving world...");
-                    var save = WorldSaving.GetBytes(world);
-                    Console.WriteLine("Saved world. Size " + save.Length);
-
-                    File.WriteAllBytes("save.bin", save);
+                    SaveWorld();
 
                     Environment.Exit(0);
                 };
 
             server.StartServer().GetAwaiter().GetResult();
 
-            Console.WriteLine("Shutting down...");
+            WriteLine("Shutting down...");
         }
 
         private static bool TryToServeChunk(int id, bool generateIfNull, out string? outChunk)
@@ -255,6 +285,48 @@ namespace server
 
             outChunk = Convert.ToBase64String(ms.ToArray());
             return true;
+        }
+
+        static string input = "";
+        static int cursor = 0;
+
+        public static void Error(string err) => WriteLine("[ERROR] " + err, ConsoleColor.Red);
+        public static void Warn(string w) => WriteLine("[WARN] " + w, ConsoleColor.Yellow);
+        public static void WriteLine(string text, ConsoleColor color = ConsoleColor.White) => Write(text + "\n", color);
+        public static void Write(string text, ConsoleColor color = ConsoleColor.White)
+        {
+            ClearCurrentConsoleLine();
+            Console.ForegroundColor = color;
+            Console.Write(text);
+            Console.ForegroundColor = ConsoleColor.White;
+            DisplayInput();
+        }
+
+        public static void DisplayInput()
+        {
+            ClearCurrentConsoleLine();
+            string prefix = "> ";
+            Console.Write(prefix + input);
+            Console.SetCursorPosition(prefix.Length + cursor, Console.CursorTop);
+        }
+
+        public static void ClearCurrentConsoleLine()
+        {
+            int currentLineCursor = Console.CursorTop;
+            Console.SetCursorPosition(0, Console.CursorTop);
+            Console.Write(new string(' ', Console.WindowWidth));
+            Console.SetCursorPosition(0, currentLineCursor);
+        }
+
+
+
+        public static void SaveWorld()
+        {
+            WriteLine("Saving world...");
+            var save = WorldSaving.GetBytes(world);
+            WriteLine("Saved world. Size " + save.Length);
+
+            File.WriteAllBytes("save.bin", save);
         }
     }
 }

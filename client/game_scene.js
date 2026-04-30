@@ -73,8 +73,14 @@ class MeinkraftGameScene extends Scene {
 
         updateEntities(dt);
 
-        this.scrollX += (this.player.position.x - this.scrollX) * 0.2;
-        this.scrollY += (this.player.position.y - this.scrollY) * 0.2;
+        if (Math.abs(this.player.position.x - this.scrollX) > 10) {
+            this.scrollX = this.player.position.x;
+            this.scrollY = this.player.position.y;
+        }
+        else {
+            this.scrollX += (this.player.position.x - this.scrollX) * 0.2;
+            this.scrollY += (this.player.position.y - this.scrollY) * 0.2;
+        }
 
         /*let scale = 1;
 
@@ -97,20 +103,20 @@ class MeinkraftGameScene extends Scene {
         clearBuffer('white');
         ctx.save();
 
-        if (animationNow() <= this.#sceneStart + this.#fadeDuration) {
-            const scale = interpolateEaseOut(Math.min(1, (animationNow() - this.#sceneStart) / this.#fadeDuration), 4);
-            ctx.beginPath();
-            ctx.arc(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2, VIRTUAL_WIDTH * scale, 0, Math.PI * 2);
-            ctx.clip();
-        }
-        else if (animationNow() <= this.#sceneEnds) {
-            const scale = interpolateEaseOut(Math.min(1, (this.#sceneEnds - animationNow()) / this.#fadeDuration), 4);
+        let scale;
+
+        if (animationNow() <= this.#sceneStart + this.#fadeDuration)
+            scale = interpolateEaseOut(Math.min(1, (animationNow() - this.#sceneStart) / this.#fadeDuration), 4);
+        else if (animationNow() <= this.#sceneEnds)
+            scale = interpolateEaseOut(Math.min(1, (this.#sceneEnds - animationNow()) / this.#fadeDuration), 4);
+
+        if (scale !== undefined) {
             ctx.beginPath();
             ctx.arc(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2, VIRTUAL_WIDTH * scale, 0, Math.PI * 2);
             ctx.clip();
         }
 
-        clearBuffer('#59b2ed');
+        renderBackground();
 
         // Render xy axis lines
         if (this.DEBUG) {
@@ -126,7 +132,6 @@ class MeinkraftGameScene extends Scene {
             ctx.stroke()
         }
 
-        renderBackground();
 
         fillCircle(translateX(0), translateY(0), 10, 'purple');
         fillCircle(translateX(0), translateY(1), 10, 'darkpurple');
@@ -228,10 +233,13 @@ class MeinkraftGameScene extends Scene {
             for (let i = -10; i <= 10; i++)
                 this.world.addChunk(SimpleChunkGenerator.generateTestChunk(i));
 
-            this.player = new PlayerEntity(new Vector2(3, 30), 6);
+            this.player = new PlayerEntity(new Vector2(3, 136), 6);
         }
 
         this.entities.push(this.player);
+
+        this.scrollX = this.player.position.x;
+        this.scrollY = this.player.position.y;
     }
 
     processReceivedChunks() {

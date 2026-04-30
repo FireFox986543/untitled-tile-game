@@ -343,7 +343,94 @@ class MultiPlayerEntity extends Entity {
     }
 
     render(dt, images) {
-        ctx.drawImage(images['player'], this.clip.x, this.clip.y, this.clip.width, this.clip.height, this.screenX, this.screenY, this.screenSize.width, this.screenSize.height);
+        const width = this.screenSize.width * 2;
+        const height = this.screenSize.height;
+
+        let upperOffsetY = 0;
+        let upperOffsetX = 0;
+        let armRR, armLR, legRR, legLR;
+
+        const drawLeg = (n, x, r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width * n + width / 8 + upperOffsetX, this.screenY + height * .625 + upperOffsetY);
+            ctx.rotate(r);
+            ctx.drawImage(images['player'], 4 + x, 20, 4, 12, -width / 8, 0, width / 4, height * .375);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'red');
+                line(Vector2.zero, new Vector2(0, 100), 'brown');
+            }
+
+            ctx.restore();
+        }
+        const drawTorso = () => {
+            ctx.save();
+            ctx.translate(this.screenX + width / 4 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.drawImage(images['player'], 4, 8, 8, 12, -width / 4, 0, width / 2, height * .375);
+
+            if (scene.DEBUG)
+                fillCircle(0, 0, 2, 'blue');
+
+            ctx.restore();
+        };
+        const drawHead = (r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width / 4 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.rotate(r);
+            // NOTE: this one's height should be 8 pixels from the source image, but to avoid rendering issues, we want to set it at almost 8 - that's why it's set at 7.9
+            ctx.drawImage(images['player'], 0, 0, 16, 7.9, -width / 2, -height * .25, width, height * .25);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'green');
+                line(Vector2.zero, new Vector2(0, 100), 'cyan');
+            }
+
+            ctx.restore();
+        };
+        const drawHands = (n, x, r) => {
+            ctx.save();
+            ctx.translate(this.screenX + width * n - width * .125 + upperOffsetX, this.screenY + height * .25 + upperOffsetY);
+            ctx.rotate(r);
+            ctx.drawImage(images['player'], 0 + x, 8, 4, 12, -width * .125, 0, width / 4, height * .375);
+
+            if (scene.DEBUG) {
+                fillCircle(0, 0, 2, 'red');
+                line(Vector2.zero, new Vector2(0, 100), 'brown');
+            }
+
+            ctx.restore();
+        }
+
+        /*if (this.animation === 'walking') {
+            upperOffsetX = Math.pow(Math.sin(animationNow() * 8 * 2), 4) * 4;
+            upperOffsetY = Math.pow(Math.sin(animationNow() * 8), 4) * 4 - 2
+            armLR = Math.pow(Math.sin(animationNow() * 18), 4) * .3 + .3;
+            armRR = Math.pow(Math.sin(animationNow() * 18), 4) * -.3 - .3;
+            legLR = Math.pow(Math.cos(animationNow() * 18), 4) * .3 + .12;
+            legRR = Math.pow(Math.cos(animationNow() * 18), 4) * -.3 - .12;
+
+            const multiplier = clamp01(Math.abs(this.velocity.x / 2));
+
+            armLR *= multiplier;
+            armRR *= multiplier;
+            legLR *= multiplier;
+            legRR *= multiplier;
+        }
+        else {
+            upperOffsetX = 0;
+            upperOffsetY = 0;
+            armLR = 0;
+            armRR = 0;
+            legLR = 0;
+            legRR = 0;
+        }*/
+
+        drawLeg(0, 0, legLR); // Draw left leg (4, 20)
+        drawLeg(.25, 4, legRR); // Draw right leg (8, 20)
+        drawTorso();
+        drawHead();
+        drawHands(0, 0, armLR); // Draw left hand
+        drawHands(.75, 12, armRR); // Draw right hand
 
         ctx.font = '32px "Jersey 10"';
         ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';

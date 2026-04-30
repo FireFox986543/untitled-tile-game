@@ -5,12 +5,13 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace server
 {
     public class WebSocketServer
     {
-        private readonly ConcurrentDictionary<string, WebsocketConnection> connections;
+        public readonly ConcurrentDictionary<string, WebsocketConnection> connections;
         private readonly string uri;
         private readonly HttpListener listener;
 
@@ -29,7 +30,7 @@ namespace server
         public async Task StartServer()
         {
             listener.Start();
-            Console.WriteLine($"Listening on {uri}");
+            Program.WriteLine($"Listening on {uri}");
 
             _ = Task.Run(() => ServerLoop());
             _ = Task.Run(() => HeartbeatLoop());
@@ -60,7 +61,7 @@ namespace server
                 var ip = context.Request.RemoteEndPoint.Address;
                 ws = wsContext.WebSocket;
 
-                Console.WriteLine($"Client connected ({ip})");
+                Program.Warn($"Client connected ({ip})");
 
                 while (ws.State == WebSocketState.Open)
                 {
@@ -132,9 +133,9 @@ namespace server
                             if (doc.TryGetProperty("playerSkin", out var skinProp))
                                 playerSkin = skinProp.GetInt32();
                             else
-                                Console.WriteLine("Failed to get player skin :P");
+                                Program.Warn("Failed to get player skin :P");
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(0, 30), playerName, playerSkin));
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(0, 136), playerName, playerSkin));
                         }
 
                         var player = connections[clientId].Player;
@@ -167,7 +168,7 @@ namespace server
 
                         await connections[clientId].SendSafely(sendData);
 
-                        Console.WriteLine($"Authenticated: {clientId}");
+                        Program.Warn($"Authenticated: {clientId}");
 
                         await BroadcastExcept(JsonSerializer.Serialize(new
                         {
@@ -197,14 +198,14 @@ namespace server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message} ({clientId})");
+                Program.Error($"{ex.Message} ({clientId})");
             }
             finally
             {
                 await DisconnectClient(clientId);
 
                 ws?.Dispose();
-                Console.WriteLine($"Client disconnected ({clientId})");
+                Program.Warn($"Client disconnected ({clientId})");
             }
         }
 
@@ -225,7 +226,7 @@ namespace server
                 {
                     if (clientId != null)
                     {
-                        Console.WriteLine($"Message too large. Closing connection on ({clientId}).");
+                        Program.Error($"Message too large. Closing connection on ({clientId}).");
                         await DisconnectClient(clientId, "Tried to send large data");
                     }
                     else // Fallback, as we might not always know the client id, and in this case it would fail
@@ -262,7 +263,7 @@ namespace server
         {
             if (connections.TryGetValue(clientId, out var con))
             {
-                Console.WriteLine($"Client disconnected ({clientId}), reason {reason}");
+                Program.Warn($"Client disconnected ({clientId}), reason {reason}");
                 await con.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, CancellationToken.None);
                 connections.TryRemove(clientId, out _);
 
@@ -273,6 +274,16 @@ namespace server
                     id = clientId,
                 }));
             }
+        }
+        public async Task<bool> TryToKick(string clientId, string message = "Kicked by an operator.")
+        {
+            if (connections.TryGetValue(clientId, out var con))
+            {
+                await DisconnectClient(clientId, message);
+                return true;
+            }
+
+            return false;
         }
         public async Task Broadcast(string message)
         {
@@ -304,6 +315,22 @@ namespace server
             }
         }
 
+        public async Task Teleport(string clientId, Vector2 pos)
+        {
+            if (connections.TryGetValue(clientId, out var con))
+            {
+                con.Player.Position = pos;
+                con.Player.DirtyMovement = true;
+                await SendToClient(clientId, JsonSerializer.Serialize(new
+                {
+                    type = "playerMoved",
+                    reason = "Teleported.",
+                    x = pos.X,
+                    y = pos.Y,
+                }));
+            }
+        }
+
         private async Task HeartbeatLoop()
         {
             while (true)
@@ -315,7 +342,7 @@ namespace server
                     {
                         if ((now - con.Value.LastActivity).TotalSeconds > 30)
                         {
-                            Console.WriteLine($"Client timed out ({con.Key})");
+                            Program.Warn($"Client timed out ({con.Key})");
                             await DisconnectClient(con.Key, "Player timed out");
                         }
                     }
@@ -378,7 +405,6 @@ namespace server
             }
         }
 
-
         public void AttachPacketHandler(string type, Action<PacketData> handler)
         {
             packetHandlers[type] = handler;
@@ -410,7 +436,7 @@ namespace server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error happened while trying to send data to websocket! " + ex.Message);
+                Program.Error($"Error happened while trying to send data to websocket! " + ex.Message);
             }
             finally
             {

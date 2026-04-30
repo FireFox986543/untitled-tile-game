@@ -14,7 +14,7 @@ let globalAlpha = 1;
 
 const VIRTUAL_WIDTH = 1920;
 const VIRTUAL_HEIGHT = 1080;
-const oneTileScreenSize = 96;
+let oneTileScreenSize = 96;
 const viewport = {
     rect: undefined,
     scale: 1,
@@ -76,7 +76,8 @@ async function requestImages() {
         'tileAtlas': 'src/tileAtlas.png',
         'uiAtlas': 'src/uiAtlas.png',
         'grid': 'src/grid.png',
-        'player': 'src/PlayerRidi.png'
+        'player': 'src/PlayerRidi.png',
+        'parallax': 'src/parallax.png',
     }
     let loaded = 0;
 
@@ -268,8 +269,148 @@ function updateUIElements(dt) {
     for (let i = 0; i < scene.uiElements.length; i++)
         scene.uiElements[i].update(dt);
 }
+/*
+function renderParallax() {
+    // Render backgrounds, No explaining,
+    // Just to know, didn't take that long, hehe ;)
+    // Just a handful of hours to figure it out on my own — I already did this on another project
+    const parallaxScale = oneTileScreenSize;
+    const renderSize = 512;
+    const sourceSize = 512;
+    let startX = viewport.viewLeft - revTranslateX(viewport.viewLeft) * parallaxScale % renderSize;
+    let startY = viewport.viewTop + revTranslateY(viewport.viewTop) * parallaxScale % renderSize - renderSize;
+    let cellX = Math.trunc(revTranslateX(viewport.viewLeft) * parallaxScale / renderSize);
+    let cellY = Math.trunc(revTranslateY(viewport.viewTop) * parallaxScale / renderSize);
+
+    /*if (scene.scrollX <= viewport.visibleWidth2)
+        startX -= renderSize;
+    if (scene.scrollY <= viewport.visibleHeight2)
+        startY -= renderSize;*/
+/*if (scene.scrollX <= toTileCoords(viewport.visibleWidth2) * renderSize) {
+    startX -= renderSize;
+    cellX -= 0;
+}
+/*if (scene.scrollY <= -toTileCoords(viewport.visibleHeight2) * renderSize)
+    startY += renderSize;
+
+const visibleFirstX = renderSize - (viewport.viewLeft + startX);
+const visibleFirstY = renderSize - (viewport.viewTop - startY);
+const amountX = Math.ceil((viewport.visibleWidth + visibleFirstX) / renderSize) + 1;
+const amountY = Math.ceil((viewport.visibleHeight - visibleFirstY) / renderSize) + 1;
+
+ctx.font = '24px "Jersey 10"';
+ctx.fillStyle = 'black';
+ctx.globalAlpha = 1; // Note, we don't care about the scaled alpha, as the background must be opaque!!!
+
+for (let y = 0; y < amountY; y++) {
+    for (let x = 0; x < amountX; x++) {
+        const drawX = Math.ceil(startX + renderSize * x);
+        const drawY = Math.ceil(startY + renderSize * y);
+        const tileX = ((cellX + x) % 4 + 4) % 4;
+        const tileY = ((cellY + y) % 4 + 4) % 4;
+        ctx.drawImage(images['parallax'], tileX * sourceSize, tileY * sourceSize, sourceSize, sourceSize, drawX, drawY, renderSize + 1, renderSize + 1); // Overdraw just 1 px to fix stitching issues, it's gone now
+        //ctx.fillText(cellX + x, drawX, startY + renderSize * (y + .5));
+    }
+}
+
+ctx.fillStyle = 'red';
+ctx.fillText(`STREL ${viewport.viewLeft + startX}   ${viewport.viewTop + startY}`, 200, 450);
+ctx.fillText(`START ${startX}   ${startY}`, 200, 500);
+ctx.fillText(`CELL  ${cellX}   ${cellY}`, 200, 550);
+ctx.fillText(`DRAWN ${amountX}   ${amountY}`, 200, 600);
+}*/
+
+/*function renderParallax() {
+    const parallaxScale = 10;
+
+    const renderSize = 512;
+    let startX = viewport.viewLeft - revTranslateX(viewport.viewLeft) / parallaxScale * renderSize % renderSize;
+    let startY = viewport.viewTop + revTranslateY(viewport.viewTop) / parallaxScale * renderSize % renderSize;
+    let cellX = Math.floor(revTranslateX(viewport.viewLeft) / parallaxScale);
+    let cellY = Math.floor(revTranslateY(viewport.viewTop) / parallaxScale);
+
+    /*if (scene.scrollX <= toTileCoords(viewport.visibleWidth2))
+        startX -= renderSize;
+    if (scene.scrollY <= -toTileCoords(viewport.visibleHeight2))
+        startY += renderSize;
+
+    const visibleFirstX = renderSize - (viewport.viewLeft - startX);
+    const amountX = Math.ceil((viewport.visibleWidth - visibleFirstX) / renderSize) + 1;
+    const visibleFirstY = renderSize - (viewport.viewTop - startY);
+    const amountY = Math.ceil((viewport.visibleHeight - visibleFirstY) / renderSize) + 1;
+
+    ctx.font = '24px "Jersey 10"';
+    ctx.fillStyle = 'black';
+    ctx.globalAlpha = 1; // Note, we don't care about the scaled alpha, as the background must be opaque!!!
+
+    for (let y = 0; y < amountY; y++) {
+        for (let x = 0; x < amountX; x++) {
+            const tilingX = ((cellX + x) % 4 + 4) % 4;
+            const tilingY = ((cellY + y) % 4 + 4) % 4;
+
+            let sourceX = tilingX * 512;
+            let sourceY = tilingY * 512;
+
+            const drawX = Math.ceil(startX + renderSize * x);
+            const drawY = Math.ceil(startY + renderSize * y);
+            ctx.drawImage(images['parallax'], sourceX, sourceY, 512, 512, Math.floor(drawX), Math.floor(drawY), renderSize + 1, renderSize + 1); // Overdraw just 1 px to fix stitching issues, it's gone now
+        }
+    }
+
+    /*ctx.fillStyle = 'red';
+    ctx.fillText(`START ${startX}   ${startY}`, 700, 500);
+    ctx.fillText(`CELL  ${cellX}   ${cellY}`, 700, 550);
+    ctx.fillText(`DRAWN ${amountX}   ${amountY}`, 700, 600);
+}*/
+
+function renderParallax() {
+    const parallaxScaleX = 0.006;
+    const parallaxScaleY = 0.015; // 0.015625 -> Perfect alignment with tiles, oneTileSize / renderSize (e.g.: 96 / 6144)
+    const renderSize = 6144;
+    let startX = viewport.viewLeft - revTranslateX(viewport.viewLeft) * parallaxScaleX * renderSize % renderSize;
+    let startY = viewport.viewTop + revTranslateY(viewport.viewTop) * parallaxScaleY * renderSize % renderSize - renderSize;
+    let cellX = Math.floor(revTranslateX(viewport.viewLeft) * parallaxScaleX);
+    let cellY = Math.floor(revTranslateY(viewport.viewTop) * parallaxScaleY);
+
+    if (scene.scrollX <= toTileCoords(viewport.visibleWidth2))
+        startX -= renderSize;
+    if (scene.scrollY <= -toTileCoords(viewport.visibleHeight2))
+        startY += renderSize;
+
+    const visibleFirstX = renderSize - (viewport.viewLeft - startX);
+    const amountX = Math.ceil((viewport.visibleWidth - visibleFirstX) / renderSize) + 1;
+    const visibleFirstY = renderSize - (viewport.viewTop - startY);
+    const amountY = Math.ceil((viewport.visibleHeight - visibleFirstY) / renderSize) + 1;
+
+    ctx.font = '24px "Jersey 10"';
+    ctx.fillStyle = 'black';
+    ctx.globalAlpha = 1; // Note, we don't care about the scaled alpha, as the background must be opaque!!!
+
+    for (let y = 0; y < amountY; y++) {
+        for (let x = 0; x < amountX; x++) {
+            const tileX = ((cellX + x) % 4 + 4) % 4;
+            const tileY = ((cellY - y) % 4 + 4) % 4;
+
+            const sourceX = tileX * 512;
+            const sourceY = (3 - tileY) * 512;
+
+            const drawX = Math.ceil(startX + renderSize * x);
+            const drawY = Math.ceil(startY + renderSize * y);
+            ctx.drawImage(images['parallax'], sourceX, sourceY, 512, 512, Math.floor(drawX), Math.floor(drawY), Math.floor(renderSize + 1), Math.floor(renderSize + 1)); // Overdraw just 1 px to fix stitching issues, it's gone now
+            /*ctx.fillStyle = 'white';
+            ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));*/
+        }
+    }
+
+    /*ctx.fillStyle = 'red';
+    ctx.fillText(`START ${startX}   ${startY}`, 700, 500);
+    ctx.fillText(`CELL  ${cellX}   ${cellY}`, 700, 550);
+    ctx.fillText(`DRAWN ${amountX}   ${amountY}`, 700, 600);*/
+}
 
 function renderBackground() {
+    renderParallax();
+
     // Render backgrounds, No explaining,
     // Just to know, didn't take that long, hehe ;)
     // Just a handful of hours to figure it out on my own — I already did this on another project
