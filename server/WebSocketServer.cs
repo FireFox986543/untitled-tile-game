@@ -5,7 +5,6 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace server
 {
@@ -128,17 +127,39 @@ namespace server
                             if (!doc.TryGetProperty("playerName", out var nameProp) || nameProp.GetString() == null)
                                 playerName = "Player" + Random.Shared.Next(1000, 9999);
                             else
-                                playerName = nameProp.GetString();
+                                playerName = nameProp.GetString()?.Trim();
+
+                            if(connections.Any(x => x.Value.Player.PlayerName.Equals(playerName, StringComparison.CurrentCultureIgnoreCase)))
+                            {
+                                await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Player with that name already logged on.", CancellationToken.None);
+                                break;
+                            }
 
                             if (doc.TryGetProperty("playerSkin", out var skinProp))
                                 playerSkin = skinProp.GetInt32();
                             else
                                 Program.Warn("Failed to get player skin :P");
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(0, 136), playerName, playerSkin));
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(-10, 136), playerName, playerSkin));
                         }
 
                         var player = connections[clientId].Player;
+                        var sp = Program.world.savedPlayers.FirstOrDefault(x => x.playerName == player.PlayerName);
+                        var defPos = new Vector2(0, 136);
+
+                        if (sp != null)
+                        {
+                            defPos = new(sp.x, sp.y);
+                            player.savedState = sp;
+                        }
+                        else
+                        {
+                            player.savedState = new(player.PlayerName, defPos.X, defPos.Y);
+                            Program.world.savedPlayers.Add(player.savedState);
+                        }
+
+                        player.Position = defPos;
+
                         var playerList = new List<object>();
 
                         foreach (var c in connections)
@@ -168,7 +189,7 @@ namespace server
 
                         await connections[clientId].SendSafely(sendData);
 
-                        Program.Warn($"Authenticated: {clientId}");
+                        Program.Warn($"Authenticated: {clientId} as {player.PlayerName}");
 
                         await BroadcastExcept(JsonSerializer.Serialize(new
                         {
@@ -179,6 +200,7 @@ namespace server
                             x = player.Position.X,
                             y = player.Position.Y,
                         }), clientId);
+                        await SendChatMessage($"{player.PlayerName} joined the game");
                     }
                     else if (clientId == null)
                     {
@@ -215,12 +237,18 @@ namespace server
             var buffer = new byte[1024];
             WebSocketReceiveResult result;
 
+            if (ws.State != WebSocketState.Open)
+                return null;
+
             do
             {
                 result = await ws.ReceiveAsync(buffer, CancellationToken.None);
 
                 if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                     return null;
+                }
 
                 if (ms.Length > 4096)
                 {
@@ -237,7 +265,7 @@ namespace server
 
                 ms.Write(buffer, 0, result.Count);
 
-            } while (!result.EndOfMessage);
+            } while (!result.EndOfMessage && ws.State == WebSocketState.Open);
 
             return Encoding.UTF8.GetString(ms.ToArray());
         }
@@ -273,6 +301,7 @@ namespace server
                     type = "playerDisconnected",
                     id = clientId,
                 }));
+                await SendChatMessage($"{con.Player.PlayerName} left the game");
             }
         }
         public async Task<bool> TryToKick(string clientId, string message = "Kicked by an operator.")
@@ -315,6 +344,16 @@ namespace server
             }
         }
 
+        public async Task SendChatMessage(string msg)
+        {
+            Program.WriteLine("[Chat] " + msg);
+
+            await Broadcast(JsonSerializer.Serialize(new
+            {
+                type = "chatMessage",
+                message = msg,
+            }));
+        }
         public async Task Teleport(string clientId, Vector2 pos)
         {
             if (connections.TryGetValue(clientId, out var con))

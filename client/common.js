@@ -197,6 +197,103 @@ class FadeFlyStartAnimation {
     }
 }
 
+
+class InputCatcher {
+    #lastKey;
+    #holdTime;
+
+    constructor(onInput, text = '', cursor = 0, maxLength = 1 / 0, active = false, repeating = true, onSubmit) {
+        this.onInput = onInput;
+        this.text = text;
+        this.cursor = cursor;
+        this.active = active;
+        this.repeating = repeating;
+        this.maxLength = maxLength;
+        this.onSubmit = onSubmit;
+    }
+
+    catch(dt) {
+        // We're holding this key down
+        let key = getCurrentKey();
+
+
+        if (!this.active || !key) {
+            this.#holdTime = 0;
+            this.#lastKey = undefined;
+            return;
+        }
+
+        let repeated = false;
+
+        // We pressed the same key last time and we're allowed to repeat
+        if (this.#lastKey === key && this.repeating) {
+            this.#holdTime += dt;
+
+            if (this.#holdTime > .3 && this.#holdTime < 10) {
+                this.#holdTime = 11;
+                this.#lastKey = key;
+                return;
+            }
+            else if (this.#holdTime > 10.1) {
+                this.#holdTime = 10;
+                // We "press" this key once again by not returning
+                repeated = true;
+            }
+            else {
+                this.#lastKey = key;
+                return;
+            }
+        }
+        else
+            this.#holdTime = 0;
+
+        this.#lastKey = key;
+
+        // Handle special keys
+        if (key === KeyCode.KeyBackspace && this.text.length > 0) {
+            this.text = this.text.slice(0, this.cursor - 1) + this.text.slice(this.cursor, this.text.length);
+            this.cursor--;
+        }
+        else if (key === KeyCode.KeyDelete && this.text.length > 0)
+            this.text = this.text.slice(0, this.cursor) + this.text.slice(this.cursor + 1, this.text.length);
+        else if (key === KeyCode.KeyArrowLeft && this.cursor > 0)
+            this.cursor--;
+        else if (key === KeyCode.KeyArrowRight && this.cursor < this.text.length)
+            this.cursor++;
+        else if (key === KeyCode.KeyHome)
+            this.cursor = 0;
+        else if (key === KeyCode.KeyEnd)
+            this.cursor = this.text.length;
+        else if (key == KeyCode.KeyEnter && typeof this.onSubmit === 'function' && this.text.length > 0 && !repeated) // Don't allow repeating here
+            this.onSubmit(this.text);
+
+        // Standard keys (a-z, 0-9 + special characters)
+        else if (key.length === 1 && this.text.length < this.maxLength) {
+            if (!getKey(KeyCode.KeyShift))
+                key = key.toLowerCase();
+
+            this.text = this.text.slice(0, this.cursor) + key + this.text.slice(this.cursor, this.text.length);
+            this.cursor++;
+        }
+        else
+            return;
+
+        if (typeof this.onInput === 'function')
+            this.onInput(this.text);
+    }
+
+    setText(text) {
+        this.text = text;
+
+        if (this.cursor >= text.length)
+            this.cursor = 0;
+
+        if (typeof this.onInput === 'function')
+            this.onInput(this.text);
+    }
+}
+
+
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;

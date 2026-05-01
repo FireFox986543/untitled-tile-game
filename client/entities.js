@@ -84,7 +84,7 @@ class PlayerEntity extends Entity {
         else {
             // Handle gravity
             if (this.onGround) {
-                if (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW)) {
+                if (!scene.chatOpened && (getKey(KeyCode.KeySpace) || getKey(KeyCode.KeyW))) {
                     this.velocity.y = 6.8;
                     this.animation = 'jumping';
                 }

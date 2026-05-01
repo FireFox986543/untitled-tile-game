@@ -42,7 +42,7 @@ namespace server
                         cursor++;
                     else if (k.Key == ConsoleKey.Enter)
                     {
-                        Commands.Execute(input);
+                        await Commands.Execute(input);
                         input = "";
                         cursor = 0;
                     }
@@ -64,11 +64,24 @@ namespace server
                 WriteLine("Generating new world...");
                 world = new();
 
-                for (int i = -10; i <= 10; i++)
+                for (int i = -100; i <= 100; i++)
                     world.AddChunk(Worldgen.GenerateSimpleChunk(i));
+
+                world.savedPlayers = [
+                    new PlayerSavedState("Lordmaclord", 3776.74322f, 128.3857563f),
+                    new PlayerSavedState("Velenceiasfll", 45667.4322f, 156.531f),
+                    new PlayerSavedState("pisza", 26.8743f, 128.5487453f),
+                    new PlayerSavedState("sakk", 27.1234f, 127.374f),
+                    new PlayerSavedState("vergod", 432.6845f, 120.879413f),
+                    new PlayerSavedState("sirlagsalot", 83.68451f, 201.354784f),
+                    new PlayerSavedState("sirfucksalot", 23.8413f, 185.3584f),
+                    new PlayerSavedState("sirshitsalot", 7.8435f, 124.968451f),
+                    new PlayerSavedState("alotwver", 23.864f, 128),
+                    new PlayerSavedState("poirotadgf", 783.8435f, 64.456456f),
+                ];
             }
 
-            WriteLine($"World has {world.chunks.Count} chunks!");
+            WriteLine($"World has {world.chunks.Count} chunks and {world.savedPlayers.Count} players!");
 
             server = new WebSocketServer("http://+:5123/");
             server.AttachPacketHandler("chunkRequest", async data =>
@@ -77,10 +90,8 @@ namespace server
                 {
                     var playerChunkId = World.GetChunkId(data.Player.Position.X);
 
-                    if (data.Payload.TryGetProperty("id", out var idProp))
+                    if (data.Payload.TryGetInt("id", out var id))
                     {
-                        var id = idProp.GetInt32();
-
                         // To prevent the player from getting chunks too far way we limit the number of chunks that could be sent
                         if (Math.Abs(id - playerChunkId) <= MaxChunkDistanceServe)
                         {
@@ -102,9 +113,8 @@ namespace server
                         else
                             throw new Exception("The request failed, as the chunk is outside of the players vicinity!");
                     }
-                    else if (data.Payload.TryGetProperty("range", out var rangeProp))
+                    else if (data.Payload.TryGetString("range", out var rangeStr))
                     {
-                        string rangeStr = rangeProp.GetString() ?? "";
                         var rangeSplit = rangeStr.Split(',');
                         int rangeStart, rangeEnd;
 
@@ -149,17 +159,17 @@ namespace server
                         var ids = multiProp.EnumerateArray().Select(p => p.GetInt32()).ToArray();
                         List<object> chunksToSend = [];
 
-                        foreach (var id in ids)
+                        foreach (var id2 in ids)
                         {
                             // To prevent the player from getting chunks too far way we limit the number of chunks that could be sent
-                            if (Math.Abs(id - playerChunkId) <= MaxChunkDistanceServe)
+                            if (Math.Abs(id2 - playerChunkId) <= MaxChunkDistanceServe)
                             {
-                                if (!TryToServeChunk(id, true, out var bytes))
+                                if (!TryToServeChunk(id2, true, out var bytes))
                                     throw new Exception("Failed to generate or serve the requested chunk!");
 
                                 chunksToSend.Add(new
                                 {
-                                    id,
+                                    id = id2,
                                     bytes,
                                 });
                             }
@@ -188,15 +198,14 @@ namespace server
                     if (DateTime.UtcNow - data.Player.LastMovementPacket < TimeSpan.FromMilliseconds(MinPlayerPacketInterval))
                         throw new MovementPacketException("Too many movement packets sent!");
 
-                    if (data.Payload.TryGetProperty("x", out var xProp) && data.Payload.TryGetProperty("y", out var yProp))
+                    if (data.Payload.TryGetFloat("x", out var x) && data.Payload.TryGetFloat("y", out var y))
                     {
-                        var x = xProp.GetSingle();
-                        var y = yProp.GetSingle();
-
                         if (Vector2.DistanceSquared(data.Player.Position, new Vector2(x, y)) > MaxPlayerMovement * MaxPlayerMovement)
                             throw new MovementPacketException($"Player tried to move too far! Current position: ({data.Player.Position.X}, {data.Player.Position.Y}), attempted position: ({x}, {y})");
 
                         data.Player.Position = new Vector2(x, y);
+                        data.Player.savedState.x = x;
+                        data.Player.savedState.y = y;
                         data.Player.LastMovementPacket = DateTime.UtcNow;
                         data.Player.DirtyMovement = true;
                     }
@@ -206,6 +215,8 @@ namespace server
                 catch (MovementPacketException mex)
                 {
                     data.Player.DirtyMovement = true;
+                    data.Player.savedState.x = data.Player.Position.X;
+                    data.Player.savedState.y = data.Player.Position.Y;
                     await server.SendToClient(data.ClientId, JsonSerializer.Serialize(new
                     {
                         type = "playerMoved",
@@ -226,14 +237,10 @@ namespace server
                     if (data.Payload.TryGetProperty("changes", out var changesProp))
                         foreach (var c in changesProp.EnumerateArray())
                         {
-                            if (c.TryGetProperty("x", out var xProp) &&
-                                c.TryGetProperty("y", out var yProp) &&
-                                c.TryGetProperty("to", out var toProp))
+                            if (c.TryGetFloat("x", out var x) &&
+                                c.TryGetFloat("y", out var y) &&
+                                c.TryGetByte("to", out var to))
                             {
-                                var x = xProp.GetSingle();
-                                var y = yProp.GetSingle();
-                                var to = toProp.GetByte();
-
                                 if (!world.SetGlobalTileAt(x, y, to))
                                     throw new Exception($"Failed to set tile at {x} {y}");
 
@@ -242,6 +249,20 @@ namespace server
                             else
                                 throw new Exception("Tile modify packet contains invalid modifications");
                         }
+                }
+                catch (Exception ex)
+                {
+                    await server.SendError(data.ClientId, ex.Message);
+                }
+            });
+            server.AttachPacketHandler("sayMessage", async data =>
+            {
+                try
+                {
+                    if (data.Payload.TryGetString("message", out var msg) && msg.Length > 0 && msg.Length < 256)
+                        await server.SendChatMessage($"{data.Player.PlayerName}: {msg}");
+                    else
+                        throw new Exception("Invalid chat message!");
                 }
                 catch (Exception ex)
                 {

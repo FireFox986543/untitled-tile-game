@@ -5,6 +5,7 @@ class MenuScene extends Scene {
     #nextScene;
 
     #ipInput;
+    #nameInput;
     #tryingToConnect = false;
 
     constructor() {
@@ -73,7 +74,7 @@ class MenuScene extends Scene {
         const playModesPanel = new UIPanel();
         const singleplayerBtn = new UIButton(new Vector2(-220, 0), 'SINGLEPLAYER', ButtonTypes.GreenSmall, () => { this.#playBtnClick(); }, HorizontalAlign.CENTER, VerticalAlign.CENTER, HoverAnimation.apply, FlyHoverEvent.apply, FadeFlyStartAnimation.bind(.4, Vector2.up.multiply(60), false));
         singleplayerBtn.setParent(playModesPanel);
-        const multiplayerBtn = new UIButton(new Vector2(220, 0), 'MULTIPLAYER', ButtonTypes.BlueSmall, () => { playModesPanel.setActive(false); multiPanel.setActive(true); infoText.text = ''; }, HorizontalAlign.CENTER, VerticalAlign.CENTER, HoverAnimation.apply, FlyHoverEvent.apply, FadeFlyStartAnimation.bind(.4, Vector2.up.multiply(60), false));
+        const multiplayerBtn = new UIButton(new Vector2(220, 0), 'MULTIPLAYER', ButtonTypes.BlueSmall, () => { playModesPanel.setActive(false); multiPanel.setActive(true); infoText.text = ''; this.#nameInput.placeholder = gamerTags[Math.trunc(Math.random() * gamerTags.length)]; }, HorizontalAlign.CENTER, VerticalAlign.CENTER, HoverAnimation.apply, FlyHoverEvent.apply, FadeFlyStartAnimation.bind(.4, Vector2.up.multiply(60), false));
         multiplayerBtn.setParent(playModesPanel);
         const backBtn = new UIButton(new Vector2(0, 200), 'BACK', ButtonTypes.RedSmall, () => { playModesPanel.setActive(false); mainPanel.setActive(true); }, HorizontalAlign.CENTER, VerticalAlign.CENTER, HoverAnimation.apply, FlyHoverEvent.apply, FadeFlyStartAnimation.bind(.4, Vector2.up.multiply(60), false));
         backBtn.setParent(playModesPanel);
@@ -83,8 +84,10 @@ class MenuScene extends Scene {
         const multiBackBtn = new UIButton(new Vector2(0, 200), 'BACK', ButtonTypes.RedSmall, () => { multiPanel.setActive(false); playModesPanel.setActive(true); }, HorizontalAlign.CENTER, VerticalAlign.CENTER, HoverAnimation.apply, FlyHoverEvent.apply, FadeFlyStartAnimation.bind(.4, Vector2.up.multiply(60), false));
         multiBackBtn.setParent(multiPanel);
         this.#ipInput = new UIInputField(Vector2.zero, () => { infoText.text = ''; }, 'Enter ip...', 15, HorizontalAlign.CENTER, VerticalAlign.CENTER, null, null, null, TextAlign.CENTER);
+        this.#nameInput = new UIInputField(new Vector2(0, -120), null, '', 24, HorizontalAlign.CENTER, VerticalAlign.CENTER, null, null, null, TextAlign.CENTER);
         this.#ipInput.setParent(multiPanel);
-        const infoText = new UIText(new Vector2(0, -100), '', 'black', TextAlign.CENTER, 48, 'Jersey 10', HorizontalAlign.CENTER, VerticalAlign.CENTER);
+        this.#nameInput.setParent(multiPanel);
+        const infoText = new UIText(new Vector2(0, -220), '', 'black', TextAlign.CENTER, 48, 'Jersey 10', HorizontalAlign.CENTER, VerticalAlign.CENTER);
         infoText.setParent(multiPanel);
         const connectBtn = new UIButton(new Vector2(380, 0), '', ButtonTypes.ArrowSmall, async () => {
             if (this.#tryingToConnect)
@@ -97,7 +100,7 @@ class MenuScene extends Scene {
             this.#tryingToConnect = false;
 
             if (result.success)
-                createMultiConnection(this.#ipInput.text || '192.168.1.65', DEFAULT_PORT, () => {
+                createMultiConnection(this.#ipInput.text || '192.168.1.65',  this.#nameInput.text || this.#nameInput.placeholder, () => {
                     if (this.#sceneEnds !== undefined)
                         return;
 
@@ -105,6 +108,11 @@ class MenuScene extends Scene {
 
                     this.#sceneEnds = animationNow() + this.#fadeDuration;
                     this.#nextScene = new MeinkraftGameScene();
+                }, (e) => {
+                    if (this.#sceneEnds !== undefined)
+                        return;
+
+                    infoText.text = e;
                 });
             else
                 infoText.text = result.error;
@@ -112,7 +120,7 @@ class MenuScene extends Scene {
         connectBtn.setParent(multiPanel);
         multiPanel.setActive(false);
 
-        this.uiElements.push(mainPanel, playBtn, playModesPanel, singleplayerBtn, multiplayerBtn, backBtn, multiBackBtn, multiPanel, this.#ipInput, infoText, connectBtn);
+        this.uiElements.push(mainPanel, playBtn, playModesPanel, singleplayerBtn, multiplayerBtn, backBtn, multiBackBtn, multiPanel, this.#ipInput, infoText, connectBtn, this.#nameInput);
 
         if (animationNow() > 1)
             this.#sceneStart = animationNow();

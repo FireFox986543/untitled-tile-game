@@ -47,16 +47,17 @@ function checkValidIP(ip) {
     return ipRegex.test(ip.trim());
 }
 
-function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
+function createMultiConnection(ip, preferredName, onConnected, onFail, port = DEFAULT_PORT) {
     if (multiGame !== null && multiGame.socket.readyState === WebSocket.OPEN) {
         console.warn('Already connected to a multiplayer game, closing previous connection');
 
         multiGame.closeConnection();
+        onFail?.('Already connected.');
         return;
     }
 
     const clientId = uuidv4();
-    const playerName = gamerTags[Math.floor(Math.random() * gamerTags.length)];
+    const playerName = preferredName.trim() || gamerTags[Math.floor(Math.random() * gamerTags.length)];
     const playerSkin = Math.round(Math.random() * 4);
     multiGame = {
         authenticated: false,
@@ -134,6 +135,9 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
 
             if (pushToScene)
                 scene.entities.push(p);
+        },
+        sendChatMessage: (msg) => {
+            socket.send(JSON.stringify({ type: 'sayMessage', message: msg }));
         }
     };
 
@@ -148,6 +152,7 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
         console.log('Disconnected from server', e.reason);
 
         multiGame?.closeConnection();
+        onFail?.(e.reason);
     });
     socket.addEventListener('message', async (e) => {
         const data = JSON.parse(e.data);
@@ -238,6 +243,10 @@ function createMultiConnection(ip, port = DEFAULT_PORT, onConnected) {
                     if (!scene.setTileAt(x, y, to))
                         console.warn(`Chunk doesn't exist for this tile update ${x} ${y}`);
                 });
+                break;
+            case 'chatMessage':
+                scene.addToChat(data.message);
+                console.log('Received chat: ' + data.message);
                 break;
             default:
                 break;

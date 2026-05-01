@@ -88,10 +88,10 @@ function getCurrentKeyDown() {
 
     return null;
 }
-function getCurrentKey() {
+function getCurrentKey(ignoreModifiers = true) {
     for (const key in keys) {
         if (!Object.prototype.hasOwnProperty.call(keys, key)) continue;
-        if (keys[key].state)
+        if (keys[key].state && (ignoreModifiers ? !ModifierKeys.includes(key) : true))
             return key;
     }
     
@@ -195,6 +195,7 @@ const KeyCode = Object.freeze({
     KeyF11: 'F11',
     KeyF12: 'F12',
 });
+const ModifierKeys = [KeyCode.KeyControl, KeyCode.KeyShift, KeyCode.KeyAlt, KeyCode.KeyMeta];
 const MouseButtons = Object.freeze({
     LEFT: 0,
     RIGHT: 1,

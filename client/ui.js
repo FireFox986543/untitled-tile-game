@@ -172,16 +172,21 @@ class UIButton extends UIAnimated {
     onMouseClick(btn) { this.clicked(btn); }
 }
 class UIInputField extends UIAnimated {
+    get text() { return this.catcher.text; }
+    get cursor() { return this.catcher.cursor; }
+
     constructor(point, onInput = null, placeholder = '', maxLength = 1024, horizontalAlign = 0, verticalAlign = 0, animation = null, hoverAnimation = null, startAnimation = null, textAlign = TextAlign.LEFT) {
         const clip = UIAtlas['InputField'];
         super(point, clip, horizontalAlign, verticalAlign, animation, hoverAnimation, startAnimation);
         this.onInput = onInput;
         this.placeholder = placeholder;
-        this.maxLength = maxLength;
         this.textAlign = textAlign;
 
-        this.text = '';
-        this.cursor = undefined;
+        this.catcher = new InputCatcher(() => { this.catched(); });
+        // We'll keep this catcher always alive, and only call catch when needed
+        this.catcher.active = true;
+        this.catcher.maxLength = maxLength;
+
         this.cursorXOffset = undefined;
         this.textLength = undefined;
         this.selected = false;
@@ -191,64 +196,33 @@ class UIInputField extends UIAnimated {
     render() {
         const renderPoint = super.render();
 
-        renderInputField(this, UIAtlas[`${this.mouseOver || this.selected ? "HL_" : ""}InputField`], this.text.length === 0, renderPoint.x, renderPoint.y);
+        renderInputField(this, UIAtlas[`${this.mouseOver || this.selected ? "HL_" : ""}InputField`], this.catcher.text.length === 0, renderPoint.x, renderPoint.y);
         ctx.globalAlpha = scaleAlpha(1);
     }
 
-    update() {
+    update(dt) {
         if (getMouseButtonDown(MouseButtons.LEFT) && !this.mouseOver) {
+            this.catcher.cursor = 0;
             this.selected = false;
-            this.cursor = undefined;
             this.cursorXOffset = undefined;
             this.textLength = undefined;
             return;
         }
 
-        let key = getCurrentKeyDown();
-        if (key && this.selected) {
-            if (this.cursor === undefined)
-                this.cursor = 0;
-
-            // Handle special keys
-            if (key === KeyCode.KeyBackspace && this.text.length > 0) {
-                this.text = this.text.slice(0, this.cursor - 1) + this.text.slice(this.cursor, this.text.length);
-                this.cursor--;
-            }
-            else if (key === KeyCode.KeyDelete && this.text.length > 0)
-                this.text = this.text.slice(0, this.cursor) + this.text.slice(this.cursor + 1, this.text.length);
-            else if (key === KeyCode.KeyArrowLeft && this.cursor > 0)
-                this.cursor--;
-            else if (key === KeyCode.KeyArrowRight && this.cursor < this.text.length)
-                this.cursor++;
-            else if (key === KeyCode.KeyHome)
-                this.cursor = 0;
-            
-            else if (key === KeyCode.KeyEnd)
-                this.cursor = this.text.length;
-            // Standard keys (a-z, 0-9 + special characters)
-            else if (key.length === 1 && this.text.length < this.maxLength) {
-                if (!getKey(KeyCode.KeyShift))
-                    key = key.toLowerCase();
-
-                this.text = this.text.slice(0, this.cursor) + key + this.text.slice(this.cursor, this.text.length);
-                this.cursor++;
-            }
-            else
-                return;
-
-            this.cursorXOffset = undefined;
-            this.textLength = undefined;
-            this.timerOffset = animationNow();
-
-            if(typeof this.onInput === 'function')
-                this.onInput(this.text);
-        }
+        if(this.selected)
+            this.catcher.catch(dt);
+    }
+    
+    catched() {
+        this.timerOffset = animationNow();
+        this.cursorXOffset = undefined;
+        this.textLength = undefined;
     }
 
     onMouseClick(btn) {
         if (btn === MouseButtons.LEFT && !this.selected) {
+            this.catcher.cursor = this.catcher.text.length;
             this.selected = true;
-            this.cursor = this.text.length;
             this.cursorXOffset = undefined;
             this.textLength = undefined;
 
@@ -320,24 +294,24 @@ function renderInputField(inputField, clip, isPlaceholder, x, y) {
 
     if (inputField.textLength === undefined)
         inputField.textLength = ctx.measureText(inputField.text).width;
-
-    ctx.textBaseline = before[0];
-    ctx.textAlign = before[1];
+    
     ctx.fillStyle = 'black';
-
-    if (inputField.cursor !== undefined && fraction(animationNow() - inputField.timerOffset) <= 0.5) {
+    if (inputField.selected && fraction(animationNow() - inputField.timerOffset) <= 0.5) {
         if (inputField.cursorXOffset === undefined)
             inputField.cursorXOffset = ctx.measureText(inputField.text.slice(0, inputField.cursor)).width;
-
+        
         let offset = xOffset;
-
+        
         if (inputField.textAlign === TextAlign.CENTER)
             offset = clip.width * clip.scale / 2 - inputField.textLength / 2;
         else if (inputField.textAlign === TextAlign.RIGHT)
             offset = xOffset - inputField.textLength;
-
+        
         ctx.fillRect(x + offset + inputField.cursorXOffset, y + clip.height * clip.scale / 2 - 32, 1, 64);
     }
+
+    ctx.textBaseline = before[0];
+    ctx.textAlign = before[1];
 }
 function alignedInputHelper(align, clip) {
     switch (align) {

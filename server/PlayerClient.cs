@@ -8,8 +8,16 @@ namespace server
         public string PlayerName = playerName;
         public int PlayerSkin = playerSkin;
 
+        public PlayerSavedState savedState;
         public DateTime LastMovementPacket = DateTime.MinValue;
         public bool DirtyMovement = false;
+    }
+
+    public class PlayerSavedState(string playerName, float x, float y)
+    {
+        public string playerName = playerName;
+        public float x = x;
+        public float y = y;
     }
 
     public class MovementPacketException(string message) : Exception(message) { }

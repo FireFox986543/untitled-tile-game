@@ -35,11 +35,11 @@ namespace server
                             Program.WriteLine(string.Join(' ', args));
                         break;
                     case "kick":
-                        if (arL < 0 || arL > 2 || args == null)
-                            throw new Exception("You must provide 1 or 2 arguments!");
+                        if (arL == 0 || args == null)
+                            throw new Exception("You must provide atleast one argument!");
 
                         var cl = args[0];
-                        var rs = arL == 1 ? "Kicked by operator." : args[1];
+                        var rs = arL == 1 ? "Kicked by operator." : string.Join(" ", args[1..]);
 
                         if (await Program.server.TryToKick(cl, rs))
                             Program.Warn("Kicked player.");
@@ -107,6 +107,15 @@ namespace server
                                 throw new Exception("Unknown mode");
                         }
 
+                        break;
+                    case "say":
+                        if (arL == 0 || args == null)
+                            throw new Exception("Atleast one argument is required!");
+
+                        await Program.server.SendChatMessage(string.Join(" ", args[0..]));
+                        break;
+                    case "exit":
+                        Environment.Exit(0);
                         break;
                     default:
                         throw new Exception($"Unknown command '{kw}'");

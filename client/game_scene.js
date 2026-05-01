@@ -4,12 +4,22 @@ class MeinkraftGameScene extends Scene {
     #nextScene;
     #fadeDuration = .7;
 
+    #chatTimerOffset;
+    #chatCursorXOffset;
+    #lastChatMsg;
+
     world;
     isMultiGame = false;
+    chatOpened = false;
+    chat = [];
 
     constructor() {
         super();
         this.isMultiGame = multiGame !== null;
+        this.chatCatcher = new InputCatcher(() => { this.chatInput(); });
+        this.chatCatcher.maxLength = 256;
+        this.chatCatcher.active = true;
+        this.chatCatcher.onSubmit = () => { this.chatSubmit(); };
 
         this.horizontal = 0;
 
@@ -30,26 +40,6 @@ class MeinkraftGameScene extends Scene {
 
         this.processReceivedChunks();
 
-        if (getKeyDown(KeyCode.KeyPageUp))
-            this.brush = Math.min(this.brush + 1, 255);
-        if (getKeyDown(KeyCode.KeyPageDown))
-            this.brush = Math.max(this.brush - 1, 0);
-
-        let selectedTile = new Vector2(Math.floor(revTranslateX(mousePosition.x)), Math.floor(revTranslateY(mousePosition.y)));
-        if (getMouseButton(0)) {
-            if (this.setTileAt(selectedTile.x, selectedTile.y, this.brush) && this.isMultiGame) {
-                const x = multiGame.tileChanges.find(c => c.x === selectedTile.x && c.y === selectedTile.y);
-
-                if (x)
-                    x.to = this.brush;
-                else
-                    multiGame.tileChanges.push({ x: selectedTile.x, y: selectedTile.y, to: this.brush });
-            }
-        }
-        else if (getKeyDown(KeyCode.KeyE)) {
-            this.brush = this.getTileAt(selectedTile.x, selectedTile.y);
-        }
-
         if (animationNow() >= this.#sceneEnds) {
             loadScene(this.#nextScene);
             return;
@@ -65,10 +55,46 @@ class MeinkraftGameScene extends Scene {
         if (timeScale === 0)
             return;
 
+        if (this.chatOpened) {
+            this.chatCatcher.catch(dt);
+        }
+        else {
+            if (getKeyDown(KeyCode.KeyPageUp))
+                this.brush = Math.min(this.brush + 1, 255);
+            else if (getKeyDown(KeyCode.KeyPageDown))
+                this.brush = Math.max(this.brush - 1, 0);
+
+            let selectedTile = new Vector2(Math.floor(revTranslateX(mousePosition.x)), Math.floor(revTranslateY(mousePosition.y)));
+            if (getMouseButton(0)) {
+                if (this.setTileAt(selectedTile.x, selectedTile.y, this.brush) && this.isMultiGame) {
+                    const x = multiGame.tileChanges.find(c => c.x === selectedTile.x && c.y === selectedTile.y);
+
+                    if (x)
+                        x.to = this.brush;
+                    else
+                        multiGame.tileChanges.push({ x: selectedTile.x, y: selectedTile.y, to: this.brush });
+                }
+            }
+            else if (getKeyDown(KeyCode.KeyE)) {
+                this.brush = this.getTileAt(selectedTile.x, selectedTile.y);
+            }
+        }
+
+        if (!this.chatOpened && getKeyDown(KeyCode.KeyT)) {
+            this.chatOpened = true;
+            this.chatCatcher.active = false; // Disable chat listening until the player released the key
+            this.#chatTimerOffset = animationNow();
+        }
+        // Only enable the listener if we've released the t key
+        else if (this.chatOpened && !this.chatCatcher.active && getKeyUp(KeyCode.KeyT))
+            this.chatCatcher.active = true;
+        else if (getKeyDown(KeyCode.KeyEscape))
+            this.chatOpened = false;
+
         const keyA = getKey(KeyCode.KeyA) || getKey(KeyCode.KeyArrowLeft);
         const keyD = getKey(KeyCode.KeyD) || getKey(KeyCode.KeyArrowRight);
 
-        this.horizontal = (keyA ? -1 : 0) + (keyD ? 1 : 0);
+        this.horizontal = this.chatOpened ? 0 : (keyA ? -1 : 0) + (keyD ? 1 : 0);
         this.player.syncInput(this.horizontal);
 
         updateEntities(dt);
@@ -187,6 +213,11 @@ class MeinkraftGameScene extends Scene {
             ctx.fillText(this.brush, viewport.viewRight - padding - renderSize / 2, viewport.viewTop + padding + renderSize / 2)
         }
 
+        if (this.chatOpened)
+            this.renderChat();
+        else if ((animationNow() - this.#lastChatMsg) <= 5)
+            this.renderNewMessages();
+
         // Render mouse pointer
         ctx.restore();
     }
@@ -246,6 +277,100 @@ class MeinkraftGameScene extends Scene {
         if (multiGame && multiGame.receivedChunks) {
             multiGame.receivedChunks.forEach(chunk => this.world.addChunk(chunk));
             multiGame.receivedChunks = null;
+        }
+    }
+
+    addToChat(msg) {
+        if (this.chat.length >= 16)
+            this.chat.shift();
+
+        this.chat.push([msg, animationNow()]);
+
+        this.#lastChatMsg = animationNow();
+    }
+    chatInput() {
+        this.#chatCursorXOffset = undefined;
+        this.#chatTimerOffset = animationNow();
+    }
+    chatSubmit() {
+        const text = this.chatCatcher.text;
+        console.log('Player said: ' + text);
+
+        if (this.isMultiGame)
+            multiGame.sendChatMessage(text);
+        else
+            this.addToChat('You: ' + text);
+
+        this.chatCatcher.setText('');
+    }
+    renderChat() {
+        // Render inputbox
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        const padding = 10;
+        const size = 60;
+        const left = viewport.viewLeft + padding;
+        const top = viewport.viewBottom - padding - size;
+        const width = 1200;
+        ctx.fillRect(left, top, width, size);
+
+        // Render input text
+        ctx.fillStyle = 'white';
+        ctx.font = '48px "Jersey 10"';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+
+        if (this.#chatCursorXOffset === undefined)
+            this.#chatCursorXOffset = ctx.measureText(this.chatCatcher.text.slice(0, this.chatCatcher.cursor)).width;
+
+        ctx.fillText(this.chatCatcher.text, left + 10, top + size / 2);
+
+        if (fraction(animationNow() - this.#chatTimerOffset) <= 0.5)
+            ctx.fillRect(left + 10 + this.#chatCursorXOffset, top + 4, 1, size - 8);
+
+        // Render chat messages
+        if (this.chat.length > 0) {
+            const l = this.chat.length * size;
+            const start = top - 10 - l;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fillRect(left, start, width, l);
+
+            ctx.fillStyle = 'white';
+            for (let i = this.chat.length - 1; i >= 0; i--) {
+                const msg = this.chat[i][0];
+
+                const startY = start + (i + .5) * size;
+                ctx.fillText(msg, left + 10, startY);
+            }
+        }
+    }
+    renderNewMessages() {
+        // Render chat messages
+        const padding = 10;
+        const size = 60;
+        const left = viewport.viewLeft + padding;
+        const top = viewport.viewBottom - padding - size;
+        const width = 1200;
+        const msgs = this.chat.filter((c) => { return (animationNow() - c[1]) <= 5; });
+
+        const l = msgs.length * size;
+        const start = top - 10 - l;
+
+        ctx.font = '48px "Jersey 10"';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            ctx.globalAlpha = scaleAlpha(1 - clamp01(animationNow() - (msgs[i][1] + 4)));
+            const msg = msgs[i][0];
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fillRect(left, start + i * size, width, size);
+
+            const startY = start + (i + .5) * size;
+            ctx.fillStyle = 'white';
+            ctx.fillText(msg, left + 10, startY);
+
+            ctx.globalAlpha = scaleAlpha(1);
         }
     }
 }

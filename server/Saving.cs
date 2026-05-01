@@ -16,7 +16,9 @@ namespace server
                 idx++;
             }
 
-            SavedWorld w = new(chunks);
+            SavedPlayer[] savedPlayers = [.. world.savedPlayers.Select(p => new SavedPlayer(p.playerName, p.x, p.y))];
+
+            SavedWorld w = new(chunks, savedPlayers);
 
             var serialized = MemoryPackSerializer.Serialize(w);
             using var ms = new MemoryStream();
@@ -41,11 +43,27 @@ namespace server
             var save = ms.ToArray();
             var savedWorld = MemoryPackSerializer.Deserialize<SavedWorld>(save) ?? throw new Exception("Failed to load world!");
             var world = new World();
+            world.savedPlayers = [.. savedWorld.players.Select(p => new PlayerSavedState(p.playerName, p.x, p.y))];
 
             foreach (var c in savedWorld.chunks)
                 world.AddChunk(new (c.chunkId, c.bytes));
 
             return world;
+        }
+    }
+
+    [MemoryPackable]
+    public partial class SavedPlayer
+    {
+        public string playerName;
+        public float x;
+        public float y;
+
+        public SavedPlayer(string playerName, float x, float y)
+        {
+            this.playerName = playerName;
+            this.x = x;
+            this.y = y;
         }
     }
 
@@ -66,10 +84,12 @@ namespace server
     public partial class SavedWorld
     {
         public SavedChunk[] chunks;
+        public SavedPlayer[] players;
 
-        public SavedWorld(SavedChunk[] chunks)
+        public SavedWorld(SavedChunk[] chunks, SavedPlayer[] players)
         {
             this.chunks = chunks;
+            this.players = players;
         }
     }
 }

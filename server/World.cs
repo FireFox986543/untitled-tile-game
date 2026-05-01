@@ -7,6 +7,7 @@ namespace server
         public const float gravity = -9.81f;
         public Dictionary<int, Chunk> chunks;
         public List<object> dirtyChanges = [];
+        public List<PlayerSavedState> savedPlayers = [];
 
         public World()
         {
