@@ -141,7 +141,7 @@ class MeinkraftGameScene extends Scene {
             ctx.arc(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2, VIRTUAL_WIDTH * scale, 0, Math.PI * 2);
             ctx.clip();
         }
-
+        
         renderBackground();
 
         // Render xy axis lines

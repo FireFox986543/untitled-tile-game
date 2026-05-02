@@ -99,7 +99,7 @@ class PlayerEntity extends Entity {
             else
                 this.velocity.y += World.gravity * dt;
 
-                this.jumpTime = this.animation === 'jumping' ? this.jumpTime + dt : 0;
+            this.jumpTime = this.animation === 'jumping' ? this.jumpTime + dt : 0;
         }
 
         // Move the player along the x axis based on the velocities
@@ -142,7 +142,7 @@ class PlayerEntity extends Entity {
                 multiGame.cleanUpChunks();
             }
 
-            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .13) {
+            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .08) {
                 multiGame.sendMovementPacket();
                 this.lastMovementPacket = scene.gameTime;
                 this.lastPosition = this.position;
@@ -152,6 +152,10 @@ class PlayerEntity extends Entity {
                 multiGame.sendTileChanges();
                 this.lastTileChangePacket = scene.gameTime;
             }
+        }
+        else {
+            if (this.chunkId !== this.lastChunkId && this.lastChunkId !== undefined)
+                scene.world.generateMissingChunks();
         }
 
         this.lastChunkId = this.chunkId;

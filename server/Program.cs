@@ -8,7 +8,7 @@ namespace server
     {
         public const int MaxChunkDistanceServe = 4;
         public const float MaxPlayerMovement = 20f;
-        public const float MinPlayerPacketInterval = 100; // In milliseconds
+        public const float MinPlayerPacketInterval = 60; // In milliseconds
         public static World world;
         public static WebSocketServer server;
 

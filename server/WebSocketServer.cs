@@ -440,7 +440,7 @@ namespace server
                 }
                 catch { }
 
-                await Task.Delay(160);
+                await Task.Delay(80);
             }
         }
 

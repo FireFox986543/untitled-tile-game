@@ -67,6 +67,21 @@ class World {
         );
     }
     static getChunkId(x) { return Math.floor(x / Chunk.chunkSizeX); }
+
+    generateMissingChunks() {
+        // Where is the player in chunk ids?
+        const chunkBase = scene.player.chunkId;
+        const toRequest = [];
+
+        for (let i = -3; i < 3; i++) {
+            // "i" is relative to the player
+            const globalId = chunkBase + i;
+
+            // This chunk hasn't been requested yet
+            if (!this.getChunk(globalId))
+                this.addChunk(SimpleChunkGenerator.generateTestChunk(globalId));
+        }
+    }
 }
 
 class Chunk {
@@ -143,7 +158,7 @@ class SimpleChunkGenerator {
                 const global = World.getXYFromChunkXY(new Vector2(x, y), chunkIdx)
                 const idx = scene.getIdxAtTile(x, y);
 
-                if(Noise.perlin(global.x / 20 + 46.564, global.y / 20 - 846.35, -464.84) < .42 - clamp01(y / 1200))
+                if (Noise.perlin(global.x / 20 + 46.564, global.y / 20 - 846.35, -464.84) < .42 - clamp01(y / 1200))
                     tilemap[idx] = 0;
             }
         }
