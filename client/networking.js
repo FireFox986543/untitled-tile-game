@@ -67,6 +67,9 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
 
         players: [],
         tileChanges: [],
+        keyA: false,
+        keyD: false,
+        keyW: false,
 
         onClose: null,
 
@@ -138,7 +141,10 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
         },
         sendChatMessage: (msg) => {
             socket.send(JSON.stringify({ type: 'sayMessage', message: msg }));
-        }
+        },
+        sendKeyStates: () => {
+            socket.send(JSON.stringify({ type: 'input', a: multiGame.keyA, d: multiGame.keyD, w: multiGame.keyW }));
+        },
     };
 
     const socket = multiGame.socket = new WebSocket(`ws://${ip}:${port}`);

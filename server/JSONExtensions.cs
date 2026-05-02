@@ -64,5 +64,17 @@ namespace server
 
             return false;
         }
+        public static bool TryGetBool(this JsonElement e, string prop, out bool s)
+        {
+            s = false;
+
+            if (e.TryGetProperty(prop, out var p))
+            {
+                s = p.GetBoolean();
+                return true;
+            }
+
+            return false;
+        }
     }
 }

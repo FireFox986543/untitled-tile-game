@@ -64,21 +64,8 @@ namespace server
                 WriteLine("Generating new world...");
                 world = new();
 
-                for (int i = -100; i <= 100; i++)
+                for (int i = -10; i <= 10; i++)
                     world.AddChunk(Worldgen.GenerateSimpleChunk(i));
-
-                world.savedPlayers = [
-                    new PlayerSavedState("Lordmaclord", 3776.74322f, 128.3857563f),
-                    new PlayerSavedState("Velenceiasfll", 45667.4322f, 156.531f),
-                    new PlayerSavedState("pisza", 26.8743f, 128.5487453f),
-                    new PlayerSavedState("sakk", 27.1234f, 127.374f),
-                    new PlayerSavedState("vergod", 432.6845f, 120.879413f),
-                    new PlayerSavedState("sirlagsalot", 83.68451f, 201.354784f),
-                    new PlayerSavedState("sirfucksalot", 23.8413f, 185.3584f),
-                    new PlayerSavedState("sirshitsalot", 7.8435f, 124.968451f),
-                    new PlayerSavedState("alotwver", 23.864f, 128),
-                    new PlayerSavedState("poirotadgf", 783.8435f, 64.456456f),
-                ];
             }
 
             WriteLine($"World has {world.chunks.Count} chunks and {world.savedPlayers.Count} players!");
@@ -193,6 +180,8 @@ namespace server
             });
             server.AttachPacketHandler("playerMovement", async data =>
             {
+                throw new NotImplementedException();
+
                 try
                 {
                     if (DateTime.UtcNow - data.Player.LastMovementPacket < TimeSpan.FromMilliseconds(MinPlayerPacketInterval))
@@ -269,6 +258,17 @@ namespace server
                     await server.SendError(data.ClientId, ex.Message);
                 }
             });
+            server.AttachPacketHandler("input", async data =>
+            {
+                if (data.Payload.TryGetBool("a", out var a) &&
+                    data.Payload.TryGetBool("d", out var d) &&
+                    data.Payload.TryGetBool("w", out var w))
+                {
+                    data.Player.AKey = a;
+                    data.Player.DKey= d;
+                    data.Player.WKey = w;
+                }
+            });
 
             if (savingEnabled)
                 Console.CancelKeyPress += (_, _) =>
@@ -281,6 +281,15 @@ namespace server
             server.StartServer().GetAwaiter().GetResult();
 
             WriteLine("Shutting down...");
+        }
+
+        public static void GameUpdate(float dt)
+        {
+            foreach (var (_, c) in server.connections)
+            {
+                var p = c.Player;
+                p.Update(dt);
+            }
         }
 
         private static bool TryToServeChunk(int id, bool generateIfNull, out string? outChunk)

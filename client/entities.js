@@ -142,11 +142,11 @@ class PlayerEntity extends Entity {
                 multiGame.cleanUpChunks();
             }
 
-            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .08) {
+            /*if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .08) {
                 multiGame.sendMovementPacket();
                 this.lastMovementPacket = scene.gameTime;
                 this.lastPosition = this.position;
-            }
+            }*/
 
             if (multiGame.tileChanges.length > 0 && scene.gameTime - this.lastTileChangePacket > .33) {
                 multiGame.sendTileChanges();

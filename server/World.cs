@@ -89,6 +89,13 @@ namespace server
 
         public static int GetChunkId(float x) => (int)MathF.Floor(x / Chunk.chunkSizeX);
         public static int GetIdxAtTile(int x, int y) => y * Chunk.chunkSizeX + x;
+        public static TileProperty GetTileProperties(byte tileID) 
+        {
+            if (!TILEPROPERITES.props.TryGetValue(tileID, out var p))
+                return new(true, false);
+
+            return p;
+        }
         public static Vector2 GetXYCoordsFromIdx(int idx) => new(idx % Chunk.chunkSizeX, MathF.Floor(idx / Chunk.chunkSizeX));
     }
 

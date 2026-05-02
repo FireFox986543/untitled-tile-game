@@ -129,7 +129,7 @@ namespace server
                             else
                                 playerName = nameProp.GetString()?.Trim();
 
-                            if(connections.Any(x => x.Value.Player.PlayerName.Equals(playerName, StringComparison.CurrentCultureIgnoreCase)))
+                            if (connections.Any(x => x.Value.Player.PlayerName.Equals(playerName, StringComparison.CurrentCultureIgnoreCase)))
                             {
                                 await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Player with that name already logged on.", CancellationToken.None);
                                 break;
@@ -391,56 +391,75 @@ namespace server
                 await Task.Delay(10_000);
             }
         }
+
+        private DateTime lastEntityUpdate;
+        private DateTime lastTileUpdate;
+        private DateTime lastGameUpdate;
         private async Task ServerLoop()
         {
             while (true)
             {
                 try
                 {
-                    List<object> entities = [];
-
-                    foreach (var c in connections)
+                    if ((DateTime.Now - lastEntityUpdate).TotalMilliseconds > 80f)
                     {
-                        var p = c.Value.Player;
 
-                        if (p.DirtyMovement)
-                            entities.Add(new
+                        List<object> entities = [];
+
+                        foreach (var c in connections)
+                        {
+                            var p = c.Value.Player;
+
+                            if (p.DirtyMovement)
+                                entities.Add(new
+                                {
+                                    id = c.Key,
+                                    x = p.Position.X,
+                                    y = p.Position.Y,
+                                    type = "player"
+                                });
+
+                            p.DirtyMovement = false;
+                        }
+
+                        if (entities.Count > 0)
+                        {
+                            var data = JsonSerializer.Serialize(new
                             {
-                                id = c.Key,
-                                x = p.Position.X,
-                                y = p.Position.Y,
-                                type = "player"
+                                type = "entityUpdate",
+                                entities,
                             });
 
-                        p.DirtyMovement = false;
+                            await Broadcast(data);
+                        }
+                        lastEntityUpdate = DateTime.Now;
                     }
 
-                    if (entities.Count > 0)
+                    if ((DateTime.Now - lastTileUpdate).TotalMilliseconds > 300f)
                     {
-                        var data = JsonSerializer.Serialize(new
+                        if (Program.world.dirtyChanges.Count > 0)
                         {
-                            type = "entityUpdate",
-                            entities,
-                        });
+                            var data = JsonSerializer.Serialize(new
+                            {
+                                type = "tileUpdate",
+                                changes = Program.world.dirtyChanges
+                            });
 
-                        await Broadcast(data);
+                            Program.world.dirtyChanges.Clear();
+                            await Broadcast(data);
+                        }
+                        lastTileUpdate = DateTime.Now;
                     }
 
-                    if (Program.world.dirtyChanges.Count > 0)
+                    if ((DateTime.Now - lastGameUpdate).TotalMilliseconds >= 16f)
                     {
-                        var data = JsonSerializer.Serialize(new
-                        {
-                            type = "tileUpdate",
-                            changes = Program.world.dirtyChanges
-                        });
-
-                        Program.world.dirtyChanges.Clear();
-                        await Broadcast(data);
+                        Program.GameUpdate((float)(DateTime.Now - lastGameUpdate).TotalSeconds);
+                        lastGameUpdate = DateTime.Now;
                     }
                 }
                 catch { }
 
-                await Task.Delay(80);
+                await Task.Delay(2);
             }
         }
 

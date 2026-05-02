@@ -60,7 +60,7 @@ namespace server
 
                         foreach (var (id, pl) in c)
                         {
-                            Program.WriteLine($"    - [{id}] {pl.IP} {pl.Player.PlayerName}");
+                            Program.WriteLine($"    - [{id}] {pl.IP} {pl.Player.PlayerName}  @  {pl.Player.Position}");
                         }
                         break;
                     case "tp":

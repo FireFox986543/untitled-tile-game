@@ -80,6 +80,35 @@ class MeinkraftGameScene extends Scene {
             }
         }
 
+        if(this.isMultiGame) {
+            if(getKeyDown(KeyCode.KeyA)) {
+                multiGame.keyA = true;
+                multiGame.sendKeyStates();
+            }
+            else if(getKeyUp(KeyCode.KeyA)) {
+                multiGame.keyA = false;
+                multiGame.sendKeyStates();
+            }
+
+            if(getKeyDown(KeyCode.KeyD)) {
+                multiGame.keyD = true;
+                multiGame.sendKeyStates();
+            }
+            else if(getKeyUp(KeyCode.KeyD)) {
+                multiGame.keyD = false;
+                multiGame.sendKeyStates();
+            }
+            
+            if(getKeyDown(KeyCode.KeyW)) {
+                multiGame.keyW = true;
+                multiGame.sendKeyStates();
+            }
+            else if(getKeyUp(KeyCode.KeyW)) {
+                multiGame.keyW = false;
+                multiGame.sendKeyStates();
+            }
+        }
+
         if (!this.chatOpened && getKeyDown(KeyCode.KeyT)) {
             this.chatOpened = true;
             this.chatCatcher.active = false; // Disable chat listening until the player released the key
