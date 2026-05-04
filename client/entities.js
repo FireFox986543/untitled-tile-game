@@ -326,6 +326,15 @@ class PlayerEntity extends Entity {
         x %= 4;
         return new ClipRegion(11 * x, 0, 10, 34);
     }
+
+    safeTeleport(x, y) {
+        this.position = new Vector2(x, y);
+        scene.scrollX = this.position.x;
+        scene.scrollY = this.position.y;
+
+        scene.world.generateMissingChunks();
+        organizeAt(scene.scrollX, scene.scrollY);
+    }
 }
 
 class MultiPlayerEntity extends Entity {

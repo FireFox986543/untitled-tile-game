@@ -56,7 +56,12 @@ class World {
             return false;
 
         // Set the tile from that chunk
-        chunk.chunkTiles[scene.getIdxAtTile(cx, cy)] = tile;
+        const idx = scene.getIdxAtTile(cx, cy);
+        if(chunk.chunkTiles[idx] === tile)
+            return true;
+
+        chunk.chunkTiles[idx] = tile;
+        updateTileModification(x, y);
         return true;
     }
 

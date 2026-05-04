@@ -12,6 +12,9 @@ class MeinkraftGameScene extends Scene {
     isMultiGame = false;
     chatOpened = false;
     chat = [];
+    #receivedFirstChunks = false;
+
+    #lastRCChunk = new Vector2(0, 0);
 
     constructor() {
         super();
@@ -110,9 +113,9 @@ class MeinkraftGameScene extends Scene {
 
         /*let scale = 1;
 
-        if(getKey(KeyCode.KeyShift))
+        if (getKey(KeyCode.KeyShift))
             scale = 4;
-        else if(getKey(KeyCode.KeyControl))
+        else if (getKey(KeyCode.KeyControl))
             scale = 1000;
 
         if (getKey(KeyCode.KeyArrowUp))
@@ -123,6 +126,15 @@ class MeinkraftGameScene extends Scene {
             this.scrollX -= dt * scale;
         if (getKey(KeyCode.KeyArrowRight))
             this.scrollX += dt * scale;*/
+
+        const curRCX = Math.floor(this.scrollX / renderChunksSize);
+        const curRCY = Math.floor(this.scrollY / renderChunksSize);
+
+        if (curRCX !== this.#lastRCChunk.x || curRCY !== this.#lastRCChunk.y)
+            organizeChunks();
+
+        this.#lastRCChunk.x = curRCX;
+        this.#lastRCChunk.y = curRCY;
     }
     render(dt) {
         // Clear
@@ -141,7 +153,7 @@ class MeinkraftGameScene extends Scene {
             ctx.arc(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2, VIRTUAL_WIDTH * scale, 0, Math.PI * 2);
             ctx.clip();
         }
-        
+
         renderBackground();
 
         // Render xy axis lines
@@ -218,6 +230,17 @@ class MeinkraftGameScene extends Scene {
         else if ((animationNow() - this.#lastChatMsg) <= 5)
             this.renderNewMessages();
 
+        /*for (let x = 0; x < renderChunksAmount; x++) {
+            for (let y = 0; y < renderChunksAmount; y++) {
+                const idx = x * renderChunksAmount + y;
+                const rc = renderChunks[idx];
+
+                ctx.fillStyle = 'green';
+                ctx.font = '24px Arial';
+                ctx.fillText(`${rc.x}  ${rc.y}`, x * 70 + 100 + viewport.viewLeft, y * 70 + 300);
+            }
+        }*/
+
         // Render mouse pointer
         ctx.restore();
     }
@@ -271,12 +294,20 @@ class MeinkraftGameScene extends Scene {
 
         this.scrollX = this.player.position.x;
         this.scrollY = this.player.position.y;
+
+        if (!this.isMultiGame)
+            setupTileRenderer(this.scrollX, this.scrollY);
     }
 
     processReceivedChunks() {
         if (multiGame && multiGame.receivedChunks) {
             multiGame.receivedChunks.forEach(chunk => this.world.addChunk(chunk));
             multiGame.receivedChunks = null;
+
+            if (!this.#receivedFirstChunks) {
+                setupTileRenderer(this.scrollX, this.scrollY);
+                this.#receivedFirstChunks = true;
+            }
         }
     }
 

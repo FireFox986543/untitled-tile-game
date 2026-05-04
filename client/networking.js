@@ -194,7 +194,7 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
                 break;
             case 'playerMoved':
                 console.warn('Received movement update packet: ' + data.reason);
-                scene.player.position = new Vector2(data.x, data.y);
+                scene.player.safeTeleport(data.x, data.y);
                 scene.player.velocity = Vector2.zero;
                 break;
             case 'playerConnected':
@@ -245,7 +245,10 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
                 });
                 break;
             case 'chatMessage':
-                scene.addToChat(data.message);
+                // When we join the server right away it'll send us the join message we can't show because the scene hasn't loaded yet
+                if(scene.addToChat)
+                    scene.addToChat(data.message);
+
                 console.log('Received chat: ' + data.message);
                 break;
             default:
