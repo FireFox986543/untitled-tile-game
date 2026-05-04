@@ -50,9 +50,6 @@ function renderChunk(rc) {
 
         c.filter = 'none';
     }
-
-    c.fillStyle = 'red';
-    c.fillRect(0, 0, 10, 10);
 }
 function getRenderChunk(rcX, rcY) {
     return renderChunks.find(v => v.x === rcX && v.y === rcY);
@@ -219,16 +216,17 @@ function renderBackground() {
             /*ctx.fillStyle = `rgb(${pseudo01(tileX, tileY, 23434.34) * 256}, ${pseudo01(tileX, tileY, 532.38) * 256}, ${pseudo01(tileX, tileY, -532.851) * 256})`
             ctx.fillRect(drawX, drawY, renderSize, renderSize);*/
             ctx.drawImage(rc.canvas, Math.floor(drawX), Math.floor(drawY), Math.floor(renderSize + 1), Math.floor(renderSize + 1)); // Overdraw just 1 px to fix stitching issues, it's gone now
-            ctx.fillStyle = 'white';
-            ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));
+            
+            /*ctx.fillStyle = 'white';
+            ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));*/
         }
     }
 
-    ctx.fillStyle = 'red';
+    /*ctx.fillStyle = 'red';
     ctx.fillText(`START ${startX}   ${startY}`, 700, 500);
     ctx.fillText(`CELL  ${cellX}   ${cellY}`, 700, 550);
     ctx.fillText(`DRAWN ${amountX}   ${amountY}`, 700, 600);
-    ctx.fillText(`SKIPPED ${skipped}`, 700, 650);
+    ctx.fillText(`SKIPPED ${skipped}`, 700, 650);*/
 }
 function tileIDToClip(x) {
     // Air doesn't get a place in the altas! How dare you?
