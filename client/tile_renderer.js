@@ -36,28 +36,20 @@ function renderChunk(rc) {
             const drawY = y * oneTileScreenSize;
 
             let tileID = scene.getTileAt(globalX, globalY);
-            const lightLevel = scene.world.getGlobalLightAt(globalX, globalY);
 
-            if (tileID !== 0) {
-                tileID = handleTileVariants(globalX, globalY, tileID);
-                let tileThis = tileIDToClip(tileID);
+            if (tileID === 0)
+                continue;
 
-                // Convert light level to percentage (0-100%)
-                c.drawImage(images['tileAtlas'], tileThis.x, tileThis.y, tileThis.width, tileThis.height,
-                    drawX, drawY, oneTileScreenSize, oneTileScreenSize);
-            }
+            tileID = handleTileVariants(globalX, globalY, tileID);
+            let tileThis = tileIDToClip(tileID);
 
-            c.fillStyle = `rgba(0, 0, 0, ${1 - lightLevel / 15})`;
-            c.fillRect(drawX, drawY, oneTileScreenSize, oneTileScreenSize);
-
-            c.filter = 'none';
-            c.font = '16px Arial';
-            c.fillStyle = 'white';
-            c.fillText(lightLevel, drawX + 20, drawY + 20);
+            //c.filter = `brightness(${Math.random() * 100}%)`;
+            c.drawImage(images['tileAtlas'], tileThis.x, tileThis.y, tileThis.width, tileThis.height,
+                drawX, drawY, oneTileScreenSize + 1, oneTileScreenSize + 1);
         }
-    }
 
-    c.filter = 'none';
+        c.filter = 'none';
+    }
 }
 function getRenderChunk(rcX, rcY) {
     return renderChunks.find(v => v.x === rcX && v.y === rcY);
@@ -224,7 +216,7 @@ function renderBackground() {
             /*ctx.fillStyle = `rgb(${pseudo01(tileX, tileY, 23434.34) * 256}, ${pseudo01(tileX, tileY, 532.38) * 256}, ${pseudo01(tileX, tileY, -532.851) * 256})`
             ctx.fillRect(drawX, drawY, renderSize, renderSize);*/
             ctx.drawImage(rc.canvas, Math.floor(drawX), Math.floor(drawY), Math.floor(renderSize + 1), Math.floor(renderSize + 1)); // Overdraw just 1 px to fix stitching issues, it's gone now
-
+            
             /*ctx.fillStyle = 'white';
             ctx.fillText(`${tileX}   ${tileY}`, drawX + 20, startY + renderSize * (y + .5));*/
         }
