@@ -38,6 +38,16 @@ class World {
         return [chunk, x, y];
     }
 
+    getGlobalLightAt(x, y) {
+        const [chunk, cx, cy] = this.#getChunkSpace(x, y);
+
+        // The coordinates couldn't be mapped onto existing chunks or is at outside of the bounds
+        if (chunk == null)
+            return 15;
+
+        // Get the tile from that chunk
+        return chunk.chunkLightmap[scene.getIdxAtTile(cx, cy)];
+    }
     getGlobalTileAt(x, y) {
         const [chunk, cx, cy] = this.#getChunkSpace(x, y);
 
@@ -57,7 +67,7 @@ class World {
 
         // Set the tile from that chunk
         const idx = scene.getIdxAtTile(cx, cy);
-        if(chunk.chunkTiles[idx] === tile)
+        if (chunk.chunkTiles[idx] === tile)
             return true;
 
         chunk.chunkTiles[idx] = tile;
@@ -87,6 +97,101 @@ class World {
                 this.addChunk(SimpleChunkGenerator.generateTestChunk(globalId));
         }
     }
+
+    generateLightMap(chunk) {
+        chunk.chunkLightmap = [];
+
+        // Handle skylight
+        // We shoot down a "ray" from the very top of the world, and see what tiles are occluded
+        // Also take a note on which tiles are lights, tiles that are visible from the sky are also considered lights 
+
+        const skyOcclusion = new Array(Chunk.chunkSizeX).fill(15, 0, Chunk.chunkSizeX);
+        const litTiles = [];
+
+        // Cast a "ray" down from the top
+        for (let y = Chunk.chunkSizeY - 1; y >= 0; y--) {
+            const startIdx = scene.getIdxAtTile(0, y);
+            let hasOccluded = false;
+
+            for (let x = 0; x < Chunk.chunkSizeX; x++) {
+                const idx = startIdx + x;
+                const p = getTileProperties(chunk.chunkTiles[idx]);
+
+                if (p.light !== undefined) {
+                    chunk.chunkLightmap[idx] = skyOcclusion[x] = p.light;
+                    litTiles.push(new Vector2(x, y));
+                    continue;
+                    // This lit tile doesn't block light
+                }
+
+                chunk.chunkLightmap[idx] = skyOcclusion[x];
+
+                // If this is a solid tile, or already occluded we decrease the light level
+                if (p.translucent) {
+                    if (skyOcclusion[x] !== 15) {
+                        skyOcclusion[x] = clamp(skyOcclusion[x] - 1, 0, 15);
+                        hasOccluded = true;
+                    }
+                }
+                else {
+                    skyOcclusion[x] = clamp(skyOcclusion[x] - 2, 0, 15);
+                    hasOccluded = true;
+                }
+                /*if (!p.translucent || (p.translucent && skyOcclusion[x] !== 15)) {
+                    skyOcclusion[x] = clamp(skyOcclusion[x] - 2, 0, 15);
+                    hasOccluded = true;
+                }*/
+            }
+        }
+
+        // Distribute Lighting HORIZONTALLY
+        let l;
+        for (let y = 0; y < Chunk.chunkSizeY; y++) {
+            l = chunk.chunkLightmap[scene.getIdxAtTile(0, y)];
+            for (let x = 1; x < Chunk.chunkSizeX; x++) // Left to right
+            {
+                const idx = scene.getIdxAtTile(x, y);
+                l = this.#distribute(idx, l, chunk.chunkLightmap, !getTileProperties(chunk.chunkTiles[idx]).translucent);
+            }
+
+            l = chunk.chunkLightmap[scene.getIdxAtTile(Chunk.chunkSizeX - 1, y)];
+            for (let x = Chunk.chunkSizeX - 2; x >= 0; x--) // Right to left
+            {
+                const idx = scene.getIdxAtTile(x, y);
+                l = this.#distribute(idx, l, chunk.chunkLightmap, !getTileProperties(chunk.chunkTiles[idx]).translucent);
+            }
+        }
+
+        // Distribute VERTICALLY
+        for (let x = 0; x < Chunk.chunkSizeX; x++) {
+            l = chunk.chunkLightmap[scene.getIdxAtTile(x, 0)];
+            for (let y = 1; y < Chunk.chunkSizeY; y++) // Bottom to top
+            {
+                const idx = scene.getIdxAtTile(x, y);
+                l = this.#distribute(idx, l, chunk.chunkLightmap, !getTileProperties(chunk.chunkTiles[idx]).translucent);
+            }
+
+            l = chunk.chunkLightmap[scene.getIdxAtTile(x, Chunk.chunkSizeY - 1)];
+            for (let y = Chunk.chunkSizeY - 2; y >= 0; y--) // Bottom to top 
+            {
+                const idx = scene.getIdxAtTile(x, y);
+                l = this.#distribute(idx, l, chunk.chunkLightmap, !getTileProperties(chunk.chunkTiles[idx]).translucent);
+            }
+        }
+    }
+
+    regenerateAll() {
+        this.chunks.forEach(v => scene.world.generateLightMap(v));
+    }
+
+    #distribute(idx, l, lmap, solid) {
+        const nL = l - 1 - (solid ? 1 : 0);
+        
+        if (lmap[idx] < nL)
+            lmap[idx] = clamp(nL, 0, 15);
+
+        return lmap[idx];
+    }
 }
 
 class Chunk {
@@ -96,6 +201,7 @@ class Chunk {
 
     chunkIdx;
     chunkTiles;
+    chunkLightmap;
 
     constructor(chunkIdx, chunkTiles) {
         this.chunkIdx = chunkIdx;
@@ -168,7 +274,10 @@ class SimpleChunkGenerator {
             }
         }
 
-        return new Chunk(chunkIdx, tilemap);
+        const chunk = new Chunk(chunkIdx, tilemap);
+        scene.world.generateLightMap(chunk);
+
+        return chunk;
     }
 }
 
@@ -200,11 +309,12 @@ const TILES = Object.freeze({
     LADDER: 24,
     BOULDERS: 25,
     DRY_GRASS: 26,
+    TORCH: 27,
 
     BORDER_TILE: 255,
 });
 const TILEPROPERTIES = Object.freeze({
-    [TILES.AIR]: { solid: false, breakable: false },
+    [TILES.AIR]: { solid: false, breakable: false, translucent: true },
     [TILES.STONE]: { solid: true, breakable: true },
     [TILES.COBBLE_STONE]: { solid: true, breakable: true },
     [TILES.DIRT]: { solid: true, breakable: true },
@@ -212,25 +322,26 @@ const TILEPROPERTIES = Object.freeze({
     [TILES.SAND]: { solid: true, breakable: true },
     [TILES.LOG1]: { solid: true, breakable: true },
     [TILES.PLANK1]: { solid: true, breakable: true },
-    [TILES.LEAVES1]: { solid: false, breakable: true },
+    [TILES.LEAVES1]: { solid: false, breakable: true, translucent: true },
     [TILES.LOG2]: { solid: true, breakable: true },
     [TILES.PLANK2]: { solid: true, breakable: true },
-    [TILES.LEAVES2]: { solid: false, breakable: true },
-    [TILES.WATER]: { solid: false, breakable: false },
-    [TILES.LAVA]: { solid: false, breakable: false },
-    [TILES.OBSIDIAN]: { solid: true, breakable: true },
-    [TILES.TULIP]: { solid: false, breakable: true },
-    [TILES.CACTUS]: { solid: false, breakable: true },
-    [TILES.DEAD_PLANT]: { solid: false, breakable: true },
-    [TILES.ANCIENT_THINGY]: { solid: true, breakable: true },
+    [TILES.LEAVES2]: { solid: false, breakable: true, translucent: true },
+    [TILES.WATER]: { solid: false, breakable: false, translucent: true },
+    [TILES.LAVA]: { solid: false, breakable: false, light: 15 },
+    [TILES.OBSIDIAN]: { solid: true, breakable: true, light: 4 },
+    [TILES.TULIP]: { solid: false, breakable: true, translucent: true },
+    [TILES.CACTUS]: { solid: false, breakable: true, translucent: true },
+    [TILES.DEAD_PLANT]: { solid: false, breakable: true, translucent: true },
+    [TILES.ANCIENT_THINGY]: { solid: true, breakable: true, light: 3 },
     [TILES.ANCIENT_THINGY2]: { solid: true, breakable: true },
     [TILES.DARK_BRICKS]: { solid: true, breakable: true },
     [TILES.DIAMOND_ORE]: { solid: true, breakable: true },
     [TILES.SANDSTONE]: { solid: true, breakable: true },
-    [TILES.SHORT_GRASS]: { solid: false, breakable: true },
-    [TILES.LADDER]: { solid: false, breakable: true, climbable: true },
-    [TILES.BOULDERS]: { solid: false, breakable: true, },
-    [TILES.DRY_GRASS]: { solid: false, breakable: true, },
+    [TILES.SHORT_GRASS]: { solid: false, breakable: true, translucent: true },
+    [TILES.LADDER]: { solid: false, breakable: true, climbable: true, translucent: true },
+    [TILES.BOULDERS]: { solid: false, breakable: true, translucent: true },
+    [TILES.DRY_GRASS]: { solid: false, breakable: true, translucent: true },
+    [TILES.TORCH]: { solid: false, breakable: true, light: 15, translucent: true },
 });
 
 // HELPERS
