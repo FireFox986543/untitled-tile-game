@@ -8,15 +8,17 @@ using System.Text.Json;
 
 namespace server
 {
-    public class WebSocketServer
+    public class SocketServer
     {
-        public readonly ConcurrentDictionary<string, WebsocketConnection> connections;
+        public readonly ConcurrentDictionary<string, ClientConnection> connections;
         private readonly string uri;
         private readonly HttpListener listener;
 
         private readonly Dictionary<string, Action<PacketData>> packetHandlers;
 
-        public WebSocketServer(string uri)
+        public GameServer server;
+
+        public SocketServer(string uri, GameServer server)
         {
             connections = [];
             listener = new();
@@ -24,12 +26,13 @@ namespace server
             packetHandlers = [];
 
             this.uri = uri;
+            this.server = server;
         }
 
         public async Task StartServer()
         {
             listener.Start();
-            Program.WriteLine($"Listening on {uri}");
+            Console.WriteLine($"Listening on {uri}");
 
             _ = Task.Run(() => ServerLoop());
             _ = Task.Run(() => HeartbeatLoop());
@@ -60,7 +63,7 @@ namespace server
                 var ip = context.Request.RemoteEndPoint.Address;
                 ws = wsContext.WebSocket;
 
-                Program.Warn($"Client connected ({ip})");
+                Console.Warn($"Client connected ({ip})");
 
                 while (ws.State == WebSocketState.Open)
                 {
@@ -138,13 +141,13 @@ namespace server
                             if (doc.TryGetProperty("playerSkin", out var skinProp))
                                 playerSkin = skinProp.GetInt32();
                             else
-                                Program.Warn("Failed to get player skin :P");
+                                Console.Warn("Failed to get player skin :P");
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(-10, 136), playerName, playerSkin));
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(server.world, new Vector2(-10, 136), playerName, playerSkin));
                         }
 
                         var player = connections[clientId].Player;
-                        var sp = Program.world.savedPlayers.FirstOrDefault(x => x.playerName == player.PlayerName);
+                        var sp = server.world.savedPlayers.FirstOrDefault(x => x.playerName == player.PlayerName);
                         var defPos = new Vector2(0, 136);
 
                         if (sp != null)
@@ -155,7 +158,7 @@ namespace server
                         else
                         {
                             player.savedState = new(player.PlayerName, defPos.X, defPos.Y);
-                            Program.world.savedPlayers.Add(player.savedState);
+                            server.world.savedPlayers.Add(player.savedState);
                         }
 
                         player.Position = player.LastGoodPos = defPos;
@@ -189,7 +192,7 @@ namespace server
 
                         await connections[clientId].SendSafely(sendData);
 
-                        Program.Warn($"Authenticated: {clientId} as {player.PlayerName}");
+                        Console.Warn($"Authenticated: {clientId} as {player.PlayerName}");
 
                         await BroadcastExcept(JsonSerializer.Serialize(new
                         {
@@ -200,7 +203,7 @@ namespace server
                             x = player.Position.X,
                             y = player.Position.Y,
                         }), clientId);
-                        await SendChatMessage($"{player.PlayerName} joined the game");
+                        await server.SendChatMessage($"{player.PlayerName} joined the game");
                     }
                     else if (clientId == null)
                     {
@@ -220,14 +223,14 @@ namespace server
             }
             catch (Exception ex)
             {
-                Program.Error($"{ex.Message} ({clientId})");
+                Console.Error($"{ex.Message} ({clientId})");
             }
             finally
             {
                 await DisconnectClient(clientId);
 
                 ws?.Dispose();
-                Program.Warn($"Client disconnected ({clientId})");
+                Console.Warn($"Client disconnected ({clientId})");
             }
         }
 
@@ -254,7 +257,7 @@ namespace server
                 {
                     if (clientId != null)
                     {
-                        Program.Error($"Message too large. Closing connection on ({clientId}).");
+                        Console.Error($"Message too large. Closing connection on ({clientId}).");
                         await DisconnectClient(clientId, "Tried to send large data");
                     }
                     else // Fallback, as we might not always know the client id, and in this case it would fail
@@ -291,7 +294,7 @@ namespace server
         {
             if (connections.TryGetValue(clientId, out var con))
             {
-                Program.Warn($"Client disconnected ({clientId}), reason {reason}");
+                Console.Warn($"Client disconnected ({clientId}), reason {reason}");
                 await con.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, CancellationToken.None);
                 connections.TryRemove(clientId, out _);
 
@@ -301,18 +304,8 @@ namespace server
                     type = "playerDisconnected",
                     id = clientId,
                 }));
-                await SendChatMessage($"{con.Player.PlayerName} left the game");
+                await server.SendChatMessage($"{con.Player.PlayerName} left the game");
             }
-        }
-        public async Task<bool> TryToKick(string clientId, string message = "Kicked by an operator.")
-        {
-            if (connections.TryGetValue(clientId, out var con))
-            {
-                await DisconnectClient(clientId, message);
-                return true;
-            }
-
-            return false;
         }
         public async Task Broadcast(string message)
         {
@@ -344,32 +337,6 @@ namespace server
             }
         }
 
-        public async Task SendChatMessage(string msg)
-        {
-            Program.WriteLine("[Chat] " + msg);
-
-            await Broadcast(JsonSerializer.Serialize(new
-            {
-                type = "chatMessage",
-                message = msg,
-            }));
-        }
-        public async Task Teleport(string clientId, Vector2 pos)
-        {
-            if (connections.TryGetValue(clientId, out var con))
-            {
-                con.Player.Position = pos;
-                con.Player.DirtyMovement = true;
-                await SendToClient(clientId, JsonSerializer.Serialize(new
-                {
-                    type = "playerMoved",
-                    reason = "Teleported.",
-                    x = pos.X,
-                    y = pos.Y,
-                }));
-            }
-        }
-
         private async Task HeartbeatLoop()
         {
             while (true)
@@ -381,7 +348,7 @@ namespace server
                     {
                         if ((now - con.Value.LastActivity).TotalSeconds > 30)
                         {
-                            Program.Warn($"Client timed out ({con.Key})");
+                            Console.Warn($"Client timed out ({con.Key})");
                             await DisconnectClient(con.Key, "Player timed out");
                         }
                     }
@@ -426,15 +393,15 @@ namespace server
                         await Broadcast(data);
                     }
 
-                    if (Program.world.dirtyChanges.Count > 0)
+                    if (server.world.dirtyChanges.Count > 0)
                     {
                         var data = JsonSerializer.Serialize(new
                         {
                             type = "tileUpdate",
-                            changes = Program.world.dirtyChanges
+                            changes = server.world.dirtyChanges
                         });
 
-                        Program.world.dirtyChanges.Clear();
+                        server.world.dirtyChanges.Clear();
                         await Broadcast(data);
                     }
                 }
@@ -450,13 +417,14 @@ namespace server
         }
     }
 
-    public class WebsocketConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey, PlayerClient player)
+    public class ClientConnection(WebSocket socket, DateTime lastActivity, IPAddress ip, string sessionKey, PlayerClient player)
     {
         public WebSocket Socket = socket;
-        public DateTime LastActivity = lastActivity;
-        public IPAddress IP = ip;
         public string SessionKey = sessionKey;
         public PlayerClient Player = player;
+        public IPAddress IP = ip;
+
+        public DateTime LastActivity = lastActivity;
 
         public SemaphoreSlim sendPool = new(1, 1);
 
@@ -475,7 +443,7 @@ namespace server
             }
             catch (Exception ex)
             {
-                Program.Error($"Error happened while trying to send data to websocket! " + ex.Message);
+                Console.Error($"Error happened while trying to send data to websocket! " + ex.Message);
             }
             finally
             {

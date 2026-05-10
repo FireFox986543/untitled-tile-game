@@ -10,7 +10,7 @@ namespace server
         public static Chunk GenerateSimpleChunk(int chunkIdx)
         {
             byte[] tilemap = new byte[Chunk.totalSize];
-            var seed = Program.world.seed;
+            var seed = Config.WorldSeed;
 
             // Generate perlin terrain
             for (int x = 0; x < Chunk.chunkSizeX; x++)
@@ -65,11 +65,13 @@ namespace server
 
                 if (flower != TILES.AIR)
                     tilemap[World.GetIdxAtTile(x, groundLevel + 1)] = flower;
+
+                tilemap[x] = TILES.BASEROCK;
             }
 
             for (int x = 0; x < Chunk.chunkSizeX; x++)
             {
-                for (int y = 0; y < Chunk.chunkSizeY; y++)
+                for (int y = 1; y < Chunk.chunkSizeY; y++)
                 {
                     var global = World.GetXYFromChunkXY(new Vector2(x, y), chunkIdx);
                     var idx = World.GetIdxAtTile(x, y);

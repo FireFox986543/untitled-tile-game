@@ -9,13 +9,9 @@ namespace server
         public List<object> dirtyChanges = [];
         public List<PlayerSavedState> savedPlayers = [];
 
-        public double seed = 0f;
-        public const double seedDiff = 90071992547.0;
-
         public World()
         {
             chunks = [];
-            seed = Random.Shared.NextDouble() * seedDiff - seedDiff / 2f + 0.23;
         }
 
         public void AddChunk(Chunk chunk)
@@ -59,9 +55,9 @@ namespace server
             return;
         }
 
-        public static TileProperty GetPropertiesAt(Vector2 point)
+        public TileProperty GetPropertiesAt(Vector2 point)
         {
-            var p = World.GetTileProperty(Program.world.GetGlobalTileAt(MathF.Floor(point.X), MathF.Floor(point.Y)));
+            var p = World.GetTileProperty(GetGlobalTileAt(MathF.Floor(point.X), MathF.Floor(point.Y)));
             return p;
         }
         public static TileProperty GetTileProperty(byte t)
@@ -147,6 +143,8 @@ namespace server
         public const byte LADDER = 24;
         public const byte BOULDERS = 25;
         public const byte DRY_GRASS = 26;
+        public const byte TORCH = 27;
+        public const byte BASEROCK = 28;
 
         public const byte BORDER_TILE = 255;
     }
@@ -189,6 +187,8 @@ namespace server
             { TILES.LADDER, new( false, true, true) },
             { TILES.BOULDERS, new( false, true) },
             { TILES.DRY_GRASS, new( false, true) },
+            { TILES.TORCH, new( false, true) },
+            { TILES.BASEROCK, new( true, false) },
         };
     }
 }

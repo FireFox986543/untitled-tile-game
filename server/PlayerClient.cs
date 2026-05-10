@@ -3,19 +3,21 @@ using System.Numerics;
 
 namespace server
 {
-    public class PlayerClient(Vector2 position, string playerName, int playerSkin)
+    public class PlayerClient(World world, Vector2 position, string playerName, int playerSkin)
     {
+        public World world = world;
+
         public Vector2 Position = position;
+        public Vector2 LastGoodPos;
         public string PlayerName = playerName;
         public int PlayerSkin = playerSkin;
 
         public PlayerSavedState savedState;
-        public DateTime LastMovementPacket = DateTime.MinValue;
         public bool DirtyMovement = false;
-        public int InTiles = 0;
-        public Vector2 LastGoodPos;
 
+        public DateTime LastMovementPacket = DateTime.MinValue;
         public DateTime LastChunkRequest;
+        public int InTiles = 0;
 
         public static readonly Vector2 size = new(.45f, 1.8f);
 
@@ -28,13 +30,13 @@ namespace server
                 new(size.X / 2f, -size.Y / 2f),
         ];
 
-        public static bool Collided(Vector2[] points, Vector2 origin)
+        public bool Collided(Vector2[] points, Vector2 origin)
         {
             bool collided = false;
 
             foreach (var p in points)
             {
-                var dt = World.GetPropertiesAt(origin + p);
+                var dt = world.GetPropertiesAt(origin + p);
 
                 if (dt.solid)
                 {

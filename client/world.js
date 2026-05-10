@@ -157,11 +157,13 @@ class SimpleChunkGenerator {
 
             if (flower)
                 tilemap[scene.getIdxAtTile(x, groundLevel + 1)] = flower;
+
+            tilemap[x] = TILES.BASEROCK;
         }
 
         // Carvers
         for (let x = 0; x < Chunk.chunkSizeX; x++) {
-            for (let y = 0; y < Chunk.chunkSizeY; y++) {
+            for (let y = 1; y < Chunk.chunkSizeY; y++) {
                 const global = World.getXYFromChunkXY(new Vector2(x, y), chunkIdx)
                 const idx = scene.getIdxAtTile(x, y);
 
@@ -202,6 +204,8 @@ const TILES = Object.freeze({
     LADDER: 24,
     BOULDERS: 25,
     DRY_GRASS: 26,
+    TORCH: 27,
+    BASEROCK: 28,
 
     BORDER_TILE: 255,
 });
@@ -233,6 +237,8 @@ const TILEPROPERTIES = Object.freeze({
     [TILES.LADDER]: { solid: false, breakable: true, climbable: true },
     [TILES.BOULDERS]: { solid: false, breakable: true, },
     [TILES.DRY_GRASS]: { solid: false, breakable: true, },
+    [TILES.TORCH]: { solid: false, breakable: true, },
+    [TILES.BASEROCK]: { solid: true, breakable: false, },
 });
 
 // HELPERS

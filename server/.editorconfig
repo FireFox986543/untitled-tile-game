@@ -14,3 +14,6 @@ dotnet_diagnostic.CS8618.severity = silent
 
 # CS8603: Possible null reference return.
 dotnet_diagnostic.CS8603.severity = silent
+
+# CA2211: Non-constant fields should not be visible
+dotnet_diagnostic.CA2211.severity = silent

@@ -5,12 +5,14 @@ namespace server
 {
     public static partial class Commands
     {
+        public static GameServer server { private get; set; }
+
         public static async Task Execute(string input)
         {
             try
             {
                 input = input.Trim();
-                Program.WriteLine("> " + input);
+                Console.WriteLine("> " + input);
 
                 input = multiSpace().Replace(input, " ");
                 var p = input.Split(' ');
@@ -25,14 +27,14 @@ namespace server
                 switch (kw)
                 {
                     case "save":
-                        if (!Program.savingEnabled)
+                        if (!Config.SavingEnabled)
                             throw new Exception("Saving is disabled!");
 
-                        Program.SaveWorld();
+                        server.SaveWorld();
                         break;
                     case "echo":
                         if (args != null)
-                            Program.WriteLine(string.Join(' ', args));
+                            Console.WriteLine(string.Join(' ', args));
                         break;
                     case "kick":
                         if (arL == 0 || args == null)
@@ -41,26 +43,26 @@ namespace server
                         var cl = args[0];
                         var rs = arL == 1 ? "Kicked by operator." : string.Join(" ", args[1..]);
 
-                        if (await Program.server.TryToKick(cl, rs))
-                            Program.Warn("Kicked player.");
+                        if (await server.TryToKick(cl, rs))
+                            Console.Warn("Kicked player.");
                         else
                             throw new Exception("Failed to kick player");
 
                         break;
                     case "ls":
-                        var c = Program.server.connections;
+                        var c = server.ClientConnections;
 
                         if (c.IsEmpty)
                         {
-                            Program.WriteLine("No players connected yet.");
+                            Console.WriteLine("No players connected yet.");
                             break;
                         }
 
-                        Program.WriteLine($"Listing players ({c.Count})");
+                        Console.WriteLine($"Listing players ({c.Count})");
 
                         foreach (var (id, pl) in c)
                         {
-                            Program.WriteLine($"    - [{id}] {pl.IP} {pl.Player.PlayerName}");
+                            Console.WriteLine($"    - [{id}] {pl.IP} {pl.Player.PlayerName}");
                         }
                         break;
                     case "tp":
@@ -71,7 +73,7 @@ namespace server
                         var x = float.Parse(args[1]);
                         var y = float.Parse(args[2]);
 
-                        await Program.server.Teleport(pla, new(x, y));
+                        await server.Teleport(pla, new(x, y));
 
                         break;
                     case "world":
@@ -88,8 +90,8 @@ namespace server
 
                                 int chunkId = int.Parse(args[1]);
 
-                                Program.world.AddChunk(Worldgen.GenerateSimpleChunk(chunkId));
-                                Program.WriteLine("Generated chunk " + chunkId);
+                                server.world.AddChunk(Worldgen.GenerateSimpleChunk(chunkId));
+                                Console.WriteLine("Generated chunk " + chunkId);
                                 break;
                             case "del":
                                 if (arL < 2)
@@ -97,8 +99,8 @@ namespace server
 
                                 chunkId = int.Parse(args[1]);
 
-                                if (Program.world.chunks.Remove(chunkId, out _))
-                                    Program.WriteLine("Removed chunk " + chunkId);
+                                if (server.world.chunks.Remove(chunkId, out _))
+                                    Console.WriteLine("Removed chunk " + chunkId);
                                 else
                                     throw new Exception("Failed to remove chunk " + chunkId);
 
@@ -108,10 +110,10 @@ namespace server
                                 {
                                     double seed = double.Parse(args[1]);
 
-                                    Program.world.seed = seed;
+                                    Config.WorldSeed = seed;
                                 }
 
-                                Program.WriteLine("World seed is " + Program.world.seed);
+                                Console.WriteLine("World seed is " + Config.WorldSeed);
                                 break;
                             default:
                                 throw new Exception("Unknown mode");
@@ -119,14 +121,14 @@ namespace server
 
                         break;
                     case "break":
-                        Program.breakingEnabled = !Program.breakingEnabled;
-                        Program.WriteLine("Breaking is set to " + Program.breakingEnabled);
+                        Config.BreakingEnabled = !Config.BreakingEnabled;
+                        Console.WriteLine("Breaking is set to " + Config.BreakingEnabled);
                         break;
                     case "say":
                         if (arL == 0 || args == null)
                             throw new Exception("Atleast one argument is required!");
 
-                        await Program.server.SendChatMessage(string.Join(" ", args[0..]));
+                        await server.SendChatMessage(string.Join(" ", args[0..]));
                         break;
                     case "exit":
                         Environment.Exit(0);
@@ -137,7 +139,7 @@ namespace server
             }
             catch (Exception ex)
             {
-                Program.Error(ex.Message);
+                Console.Error(ex.Message);
             }
         }
 
