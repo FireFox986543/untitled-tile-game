@@ -45,12 +45,12 @@ namespace server
                             Program.Warn("Kicked player.");
                         else
                             throw new Exception("Failed to kick player");
-                        
+
                         break;
                     case "ls":
                         var c = Program.server.connections;
 
-                        if(c.IsEmpty)
+                        if (c.IsEmpty)
                         {
                             Program.WriteLine("No players connected yet.");
                             break;
@@ -103,10 +103,24 @@ namespace server
                                     throw new Exception("Failed to remove chunk " + chunkId);
 
                                 break;
+                            case "seed":
+                                if (arL == 2)
+                                {
+                                    double seed = double.Parse(args[1]);
+
+                                    Program.world.seed = seed;
+                                }
+
+                                Program.WriteLine("World seed is " + Program.world.seed);
+                                break;
                             default:
                                 throw new Exception("Unknown mode");
                         }
 
+                        break;
+                    case "break":
+                        Program.breakingEnabled = !Program.breakingEnabled;
+                        Program.WriteLine("Breaking is set to " + Program.breakingEnabled);
                         break;
                     case "say":
                         if (arL == 0 || args == null)

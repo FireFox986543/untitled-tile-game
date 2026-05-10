@@ -2,6 +2,11 @@ const DEFAULT_PORT = 5123;
 const multiSettings = {
     playerChunkReceivalDistance: 3, // How far away should we request the empty chunks when the player moved, this shouldn't be larger than the server's max chunk requestal distance
     maxLoadedChunks: 7, // What distance beyond we should unload chunks?
+
+    movementPacketInterval: 0.08,
+    tilePacketInterval: 0.33,
+
+    suppressed: false,
 };
 
 let multiGame = null;
@@ -93,6 +98,9 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
         },
 
         requestEmptyChunks: () => {
+            if (multiSettings.suppressed)
+                return;
+
             // Where is the player in chunk ids?
             const chunkBase = scene.player.chunkId;
             const toRequest = [];
@@ -122,9 +130,15 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
             });
         },
         sendMovementPacket: () => {
+            if (multiSettings.suppressed)
+                return;
+
             socket.send(JSON.stringify({ type: 'playerMovement', x: scene.player.position.x, y: scene.player.position.y }));
         },
         sendTileChanges: () => {
+            if (multiSettings.suppressed)
+                return;
+
             socket.send(JSON.stringify({ type: 'tileModify', changes: multiGame.tileChanges }));
             multiGame.tileChanges.length = 0;
         },
@@ -137,6 +151,9 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
                 scene.entities.push(p);
         },
         sendChatMessage: (msg) => {
+            if (multiSettings.suppressed)
+                return;
+
             socket.send(JSON.stringify({ type: 'sayMessage', message: msg }));
         }
     };
@@ -246,7 +263,7 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
                 break;
             case 'chatMessage':
                 // When we join the server right away it'll send us the join message we can't show because the scene hasn't loaded yet
-                if(scene.addToChat)
+                if (scene.addToChat)
                     scene.addToChat(data.message);
 
                 console.log('Received chat: ' + data.message);

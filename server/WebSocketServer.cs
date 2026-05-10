@@ -158,7 +158,7 @@ namespace server
                             Program.world.savedPlayers.Add(player.savedState);
                         }
 
-                        player.Position = defPos;
+                        player.Position = player.LastGoodPos = defPos;
 
                         var playerList = new List<object>();
 

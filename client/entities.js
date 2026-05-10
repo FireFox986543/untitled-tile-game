@@ -19,11 +19,11 @@ class Entity {
 }
 
 class PlayerEntity extends Entity {
-
     static get playerSize() { return new Size(.45, 1.8); };
-
+    
     get chunkId() { return World.getChunkId(this.position.x); }
-
+    flyHack = false;
+    
     constructor(position, speed) {
         super(position, PlayerEntity.playerSize);
         this.speed = speed;
@@ -72,7 +72,7 @@ class PlayerEntity extends Entity {
             this.inLadder ||= !!dt.climbable;
         });
 
-        if (this.inLadder) {
+        if (this.inLadder || this.flyHack) {
             // Handle movement in ladder
             const vertical = (getKey(KeyCode.KeyW) ? 1 : 0) + (getKey(KeyCode.KeyS) ? -1 : 0);
 
@@ -142,13 +142,13 @@ class PlayerEntity extends Entity {
                 multiGame.cleanUpChunks();
             }
 
-            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > .08) {
+            if (this.position !== this.lastPosition && scene.gameTime - this.lastMovementPacket > multiSettings.movementPacketInterval) {
                 multiGame.sendMovementPacket();
                 this.lastMovementPacket = scene.gameTime;
                 this.lastPosition = this.position;
             }
 
-            if (multiGame.tileChanges.length > 0 && scene.gameTime - this.lastTileChangePacket > .33) {
+            if (multiGame.tileChanges.length > 0 && scene.gameTime - this.lastTileChangePacket > multiSettings.tilePacketInterval) {
                 multiGame.sendTileChanges();
                 this.lastTileChangePacket = scene.gameTime;
             }
@@ -316,6 +316,9 @@ class PlayerEntity extends Entity {
             if (dt.solid)
                 collided = true;
         });
+
+        if(this.flyHack)
+            return false;
 
         return collided;
     }

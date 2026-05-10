@@ -18,7 +18,7 @@ namespace server
 
             SavedPlayer[] savedPlayers = [.. world.savedPlayers.Select(p => new SavedPlayer(p.playerName, p.x, p.y))];
 
-            SavedWorld w = new(chunks, savedPlayers);
+            SavedWorld w = new(chunks, savedPlayers, world.seed);
 
             var serialized = MemoryPackSerializer.Serialize(w);
             using var ms = new MemoryStream();
@@ -85,11 +85,13 @@ namespace server
     {
         public SavedChunk[] chunks;
         public SavedPlayer[] players;
+        public double seed = 0;
 
-        public SavedWorld(SavedChunk[] chunks, SavedPlayer[] players)
+        public SavedWorld(SavedChunk[] chunks, SavedPlayer[] players, double seed)
         {
             this.chunks = chunks;
             this.players = players;
+            this.seed = seed;
         }
     }
 }

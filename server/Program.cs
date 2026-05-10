@@ -7,10 +7,12 @@ namespace server
     internal class Program
     {
         public const int MaxChunkDistanceServe = 4;
-        public const float MaxPlayerMovement = 20f;
+        public const float MaxPlayerMovementHorizontal = 0.6f;
         public const float MinPlayerPacketInterval = 60; // In milliseconds
+        public const float MinChunkInterval = 2000; // In milliseconds
         public static World world;
         public static WebSocketServer server;
+        public static bool breakingEnabled = true;
 
         public static readonly bool savingEnabled = true;
 
@@ -51,8 +53,6 @@ namespace server
                 }
             });
 
-            WriteLine("Generating world...");
-
             if (savingEnabled && File.Exists(saveFile))
             {
                 using var fs = File.OpenRead(saveFile);
@@ -64,21 +64,8 @@ namespace server
                 WriteLine("Generating new world...");
                 world = new();
 
-                for (int i = -100; i <= 100; i++)
+                for (int i = -10; i <= 10; i++)
                     world.AddChunk(Worldgen.GenerateSimpleChunk(i));
-
-                world.savedPlayers = [
-                    new PlayerSavedState("Lordmaclord", 3776.74322f, 128.3857563f),
-                    new PlayerSavedState("Velenceiasfll", 45667.4322f, 156.531f),
-                    new PlayerSavedState("pisza", 26.8743f, 128.5487453f),
-                    new PlayerSavedState("sakk", 27.1234f, 127.374f),
-                    new PlayerSavedState("vergod", 432.6845f, 120.879413f),
-                    new PlayerSavedState("sirlagsalot", 83.68451f, 201.354784f),
-                    new PlayerSavedState("sirfucksalot", 23.8413f, 185.3584f),
-                    new PlayerSavedState("sirshitsalot", 7.8435f, 124.968451f),
-                    new PlayerSavedState("alotwver", 23.864f, 128),
-                    new PlayerSavedState("poirotadgf", 783.8435f, 64.456456f),
-                ];
             }
 
             WriteLine($"World has {world.chunks.Count} chunks and {world.savedPlayers.Count} players!");
@@ -88,6 +75,10 @@ namespace server
             {
                 try
                 {
+
+                    if ((data.Player.LastChunkRequest - DateTime.Now).TotalMilliseconds > MinChunkInterval)
+                        throw new Exception("Too frequent chunk requests!");
+                    
                     var playerChunkId = World.GetChunkId(data.Player.Position.X);
 
                     if (data.Payload.TryGetInt("id", out var id))
@@ -190,6 +181,10 @@ namespace server
                 {
                     await server.SendError(data.ClientId, ex.Message);
                 }
+                finally
+                {
+                    data.Player.LastChunkRequest = DateTime.Now;
+                }
             });
             server.AttachPacketHandler("playerMovement", async data =>
             {
@@ -200,10 +195,32 @@ namespace server
 
                     if (data.Payload.TryGetFloat("x", out var x) && data.Payload.TryGetFloat("y", out var y))
                     {
-                        if (Vector2.DistanceSquared(data.Player.Position, new Vector2(x, y)) > MaxPlayerMovement * MaxPlayerMovement)
+                        var attemptedPos = new Vector2(x, y);
+
+                        if (Math.Abs(data.Player.Position.X - x) > MaxPlayerMovementHorizontal)
                             throw new MovementPacketException($"Player tried to move too far! Current position: ({data.Player.Position.X}, {data.Player.Position.Y}), attempted position: ({x}, {y})");
 
-                        data.Player.Position = new Vector2(x, y);
+
+                        // Check for tile collisions
+                        if (PlayerClient.Collided(PlayerClient.points, attemptedPos))
+                        {
+                            data.Player.InTiles++;
+
+                            // If the player was in tiles for longer than 3 packets of time
+                            // We send back their last good position
+                            if (data.Player.InTiles > 4)
+                            {
+                                data.Player.Position = data.Player.LastGoodPos;
+                                throw new MovementPacketException($"Player tried to move inside tiles!");
+                            }
+                        }
+                        else
+                        {
+                            data.Player.InTiles = 0;
+                            data.Player.LastGoodPos = attemptedPos;
+                        }
+
+                        data.Player.Position = attemptedPos;
                         data.Player.savedState.x = x;
                         data.Player.savedState.y = y;
                         data.Player.LastMovementPacket = DateTime.UtcNow;
@@ -241,6 +258,12 @@ namespace server
                                 c.TryGetFloat("y", out var y) &&
                                 c.TryGetByte("to", out var to))
                             {
+                                if (!breakingEnabled)
+                                {
+                                    world.dirtyChanges.Add(new { x, y, to = world.GetGlobalTileAt(x, y) });
+                                    continue;
+                                }
+
                                 if (!world.SetGlobalTileAt(x, y, to))
                                     throw new Exception($"Failed to set tile at {x} {y}");
 

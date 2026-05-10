@@ -1,8 +1,10 @@
 class World {
     static gravity = -9.81;
-
-    constructor() {
+    static seedDiff = 9007199254740991; // Number.MAX_SAFE_INTEGER
+    
+    constructor(seed = 0) {
         this.chunks = new Map();
+        this.seed = seed;
     }
 
     addChunk(chunk) {
@@ -110,41 +112,41 @@ class SimpleChunkGenerator {
         // Generate perlin terrain
         for (let x = 0; x < Chunk.chunkSizeX; x++) {
             const globalX = World.getXYFromChunkXY(new Vector2(x, 0), chunkIdx).x;
-            const groundLevel = Math.floor(fraction(Noise.perlin(globalX / 20 + 23.23454, 10.01, 30.01)) * 40) + 110;
-            const dirtAmount = Math.round(pseudo01(x - 354.52, groundLevel + 984.523, -68.654) + 3);
+            const groundLevel = Math.floor(fraction(Noise.perlin(globalX / 20 + 23.23454, 10.01, 30.01 + scene.world.seed)) * 40) + 110;
+            const dirtAmount = Math.round(pseudo01(x - 354.52, groundLevel + 984.523, -68.654 - scene.world.seed) + 3);
 
-            let flower = pseudo01(x + 45.45, groundLevel - 45.45, 3.435) < 0.1 ? TILES.TULIP : null;
+            let flower = pseudo01(x + 45.45, groundLevel - 45.45, 3.435 + scene.world.seed) < 0.1 ? TILES.TULIP : null;
             let stoneMat = TILES.STONE;
             let dirtMat = TILES.DIRT;
             let grassMat = TILES.GRASS;
 
             // Desert biome
-            if (Noise.perlin(globalX / 40 + 832.168444, 486.325, -893.554) * 100 > 60) {
+            if (Noise.perlin(globalX / 40 + 832.168444, 486.325, -893.554 + scene.world.seed) * 100 > 60) {
                 stoneMat = TILES.SANDSTONE;
                 dirtMat = TILES.SAND;
                 grassMat = TILES.SAND;
-                flower = pseudo01(x - 3425.23, groundLevel + 234.324, -5734.3) < 0.3 ? TILES.DEAD_PLANT : null;
+                flower = pseudo01(x - 3425.23, groundLevel + 234.324, -5734.3 + scene.world.seed) < 0.3 ? TILES.DEAD_PLANT : null;
 
                 if (!flower) {
-                    if (pseudo01(x - 9134.3425, groundLevel - 782.32, -445.34) < 0.1) {
+                    if (pseudo01(x - 9134.3425, groundLevel - 782.32, -445.34 - scene.world.seed) < 0.1) {
                         flower = TILES.CACTUS;
 
                         for (let j = 1; j <= 3; j++)
-                            if (pseudo01(x + 324.4, groundLevel + 234.342, 43.33) < 0.6)
+                            if (pseudo01(x + 324.4, groundLevel + 234.342, 43.33 - scene.world.seed) < 0.6)
                                 tilemap[scene.getIdxAtTile(x, groundLevel + j)] = flower;
                             else
                                 break;
                     }
-                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .6)
+                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546 + scene.world.seed) < .6)
                         flower = TILES.DRY_GRASS;
-                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546) < .72)
+                    else if (pseudo01(x + 5641.654, groundLevel - 68465.58, 9852.6546 - scene.world.seed) < .72)
                         flower = TILES.BOULDERS;
                 }
             }
-            else if (!flower && pseudo01(x + 684.65, groundLevel - 84.3, -1011.8) < .7) {
+            else if (!flower && pseudo01(x + 684.65, groundLevel - 84.3, -1011.8 + scene.world.seed) < .7) {
                 flower = TILES.SHORT_GRASS;
 
-                if (pseudo01(x + 4856.86, groundLevel + 165.16, -35735.43) < .3)
+                if (pseudo01(x + 4856.86, groundLevel + 165.16, -35735.43 + scene.world.seed) < .3)
                     tilemap[scene.getIdxAtTile(x, groundLevel + 2)] = flower;
             }
 
@@ -163,7 +165,7 @@ class SimpleChunkGenerator {
                 const global = World.getXYFromChunkXY(new Vector2(x, y), chunkIdx)
                 const idx = scene.getIdxAtTile(x, y);
 
-                if (Noise.perlin(global.x / 20 + 46.564, global.y / 20 - 846.35, -464.84) < .42 - clamp01(y / 1200))
+                if (Noise.perlin(global.x / 20 + 46.564, global.y / 20 - 846.35, -464.84 + scene.world.seed) < .42 - clamp01(y / 1200))
                     tilemap[idx] = 0;
             }
         }

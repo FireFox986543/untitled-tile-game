@@ -9,9 +9,13 @@ namespace server
         public List<object> dirtyChanges = [];
         public List<PlayerSavedState> savedPlayers = [];
 
+        public double seed = 0f;
+        public const double seedDiff = 90071992547.0;
+
         public World()
         {
             chunks = [];
+            seed = Random.Shared.NextDouble() * seedDiff - seedDiff / 2f + 0.23;
         }
 
         public void AddChunk(Chunk chunk)
@@ -55,6 +59,18 @@ namespace server
             return;
         }
 
+        public static TileProperty GetPropertiesAt(Vector2 point)
+        {
+            var p = World.GetTileProperty(Program.world.GetGlobalTileAt(MathF.Floor(point.X), MathF.Floor(point.Y)));
+            return p;
+        }
+        public static TileProperty GetTileProperty(byte t)
+        {
+            if (!TILEPROPERITES.props.TryGetValue(t, out var tp))
+                return new(true, false, false);
+
+            return tp;
+        }
         public byte GetGlobalTileAt(float x, float y)
         {
             GetChunkSpace(x, y, out Chunk? chunk, out int cx, out int cy);

@@ -111,6 +111,9 @@ class MeinkraftGameScene extends Scene {
             this.scrollY += (this.player.position.y - this.scrollY) * 0.2;
         }
 
+        const vwH2 = toTileCoords(viewport.visibleHeight2 + 2); // NOTE: +2 pixels just to avoid "unprecision"
+        this.scrollY = clamp(this.scrollY, vwH2, 256 - vwH2);
+
         /*let scale = 1;
 
         if (getKey(KeyCode.KeyShift))
@@ -284,10 +287,21 @@ class MeinkraftGameScene extends Scene {
                 multiGame.players.forEach(p => this.entities.push(p));
         }
         else {
+            this.world.seed = Math.random() * World.seedDiff - World.seedDiff / 2;
+
             for (let i = -10; i <= 10; i++)
                 this.world.addChunk(SimpleChunkGenerator.generateTestChunk(i));
 
-            this.player = new PlayerEntity(new Vector2(3, 136), 6);
+            const startX = 4.5;
+            let startY = 140;
+            for (let y = 255; y >= 0; y--) {
+                if(getTileProperties(this.getTileAt(startX, y)).solid) {
+                    startY = y + 1.9;
+                    break;
+                }
+            }
+
+            this.player = new PlayerEntity(new Vector2(startX, startY), 6);
         }
 
         this.entities.push(this.player);
@@ -325,6 +339,24 @@ class MeinkraftGameScene extends Scene {
     }
     chatSubmit() {
         const text = this.chatCatcher.text;
+
+        if (text.startsWith('.')) {
+            if (text === '.fly') {
+                scene.player.flyHack = !scene.player.flyHack;
+                this.addToChat(`§rHACK: fly hack is turned ${scene.player.flyHack ? 'ON' : 'OFF'}`);
+
+                this.chatCatcher.setText('');
+                return;
+            }
+            if (text === '.suppress') {
+                multiSettings.suppressed = !multiSettings.suppressed;
+                this.addToChat(`§rHACK: suppression is ${multiSettings.suppressed ? 'ON' : 'OFF'}`);
+
+                this.chatCatcher.setText('');
+                return;
+            }
+        }
+
         console.log('Player said: ' + text);
 
         if (this.isMultiGame)
@@ -365,11 +397,16 @@ class MeinkraftGameScene extends Scene {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.fillRect(left, start, width, l);
 
-            ctx.fillStyle = 'white';
             for (let i = this.chat.length - 1; i >= 0; i--) {
-                const msg = this.chat[i][0];
+                let msg = this.chat[i][0];
 
                 const startY = start + (i + .5) * size;
+                const [col, has] = this.getChatColor(msg);
+                ctx.fillStyle = col;
+
+                if (has)
+                    msg = msg.substring(2, msg.length);
+
                 ctx.fillText(msg, left + 10, startY);
             }
         }
@@ -392,16 +429,41 @@ class MeinkraftGameScene extends Scene {
 
         for (let i = msgs.length - 1; i >= 0; i--) {
             ctx.globalAlpha = scaleAlpha(1 - clamp01(animationNow() - (msgs[i][1] + 4)));
-            const msg = msgs[i][0];
+            let msg = msgs[i][0];
 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.fillRect(left, start + i * size, width, size);
 
             const startY = start + (i + .5) * size;
-            ctx.fillStyle = 'white';
+            const [col, has] = this.getChatColor(msg);
+            ctx.fillStyle = col;
+
+            if (has)
+                msg = msg.substring(2, msg.length);
+
             ctx.fillText(msg, left + 10, startY);
 
             ctx.globalAlpha = scaleAlpha(1);
         }
+    }
+    getChatColor(msg) {
+        if (msg.startsWith('§') && msg.length > 1) {
+            switch (msg[1]) {
+                case 'r':
+                    return ['red', true];
+                case 'g':
+                    return ['green', true];
+                case 'b':
+                    return ['blue', true];
+                case 'w':
+                    return ['white', true];
+                case 'b':
+                    return ['black', true];
+                default:
+                    return ['white', true];
+            }
+        }
+
+        return ['white', false];
     }
 }
