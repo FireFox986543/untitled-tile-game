@@ -173,10 +173,6 @@ class MeinkraftGameScene extends Scene {
             ctx.stroke()
         }
 
-
-        fillCircle(translateX(0), translateY(0), 10, 'purple');
-        fillCircle(translateX(0), translateY(1), 10, 'darkpurple');
-
         let selectedTile = new Vector2(Math.floor(revTranslateX(mousePosition.x)), Math.floor(revTranslateY(mousePosition.y)));
         let onScreen = translatePoint(selectedTile)
 
