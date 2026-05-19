@@ -57,7 +57,8 @@ namespace server
 
         public TileProperty GetPropertiesAt(Vector2 point)
         {
-            var p = World.GetTileProperty(GetGlobalTileAt(MathF.Floor(point.X), MathF.Floor(point.Y)));
+            var p = GetTileProperty(GetGlobalTileAt(MathF.Floor(point.X), MathF.Floor(point.Y)));
+
             return p;
         }
         public static TileProperty GetTileProperty(byte t)

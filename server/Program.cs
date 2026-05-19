@@ -2,13 +2,13 @@
 {
     public class Program
     {
+        public static GameServer gameServer;
+
         public static void Main(string[] args)
         {
             _ = Console.StartConsole();
 
-            var gameServer = new GameServer("http://+:5123/");
-            // Attach this game server to the one which commands will use
-            Commands.server = gameServer;
+            gameServer = new GameServer("http://+:5123/");
 
             System.Console.CancelKeyPress += (_, _) =>
             {

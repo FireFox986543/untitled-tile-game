@@ -1,4 +1,4 @@
-class MeinkraftGameScene extends Scene {
+class GameScene extends Scene {
     #sceneStart;
     #sceneEnds = undefined;
     #nextScene;

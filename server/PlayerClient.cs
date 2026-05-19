@@ -3,10 +3,8 @@ using System.Numerics;
 
 namespace server
 {
-    public class PlayerClient(World world, Vector2 position, string playerName, int playerSkin)
+    public class PlayerClient(Vector2 position, string playerName, int playerSkin)
     {
-        public World world = world;
-
         public Vector2 Position = position;
         public Vector2 LastGoodPos;
         public string PlayerName = playerName;
@@ -16,8 +14,11 @@ namespace server
         public bool DirtyMovement = false;
 
         public DateTime LastMovementPacket = DateTime.MinValue;
-        public DateTime LastChunkRequest;
+        public DateTime LastChunkRequest = DateTime.MinValue;
         public int InTiles = 0;
+
+        public DateTime LastChatPacket = DateTime.MinValue;
+        public int SpammedMessages = 0;
 
         public static readonly Vector2 size = new(.45f, 1.8f);
 
@@ -36,7 +37,7 @@ namespace server
 
             foreach (var p in points)
             {
-                var dt = world.GetPropertiesAt(origin + p);
+                var dt = Program.gameServer.world.GetPropertiesAt(origin + p);
 
                 if (dt.solid)
                 {

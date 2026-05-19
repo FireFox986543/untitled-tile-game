@@ -143,7 +143,7 @@ namespace server
                             else
                                 Console.Warn("Failed to get player skin :P");
 
-                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(server.world, new Vector2(-10, 136), playerName, playerSkin));
+                            connections[clientId] = new(ws, DateTime.UtcNow, ip, sessionKey, new PlayerClient(new Vector2(-10, 136), playerName, playerSkin));
                         }
 
                         var player = connections[clientId].Player;
@@ -217,7 +217,7 @@ namespace server
                     }
                     else if (type != null && packetHandlers.TryGetValue(type, out var handler))
                         handler(new PacketData(clientId, doc, connections[clientId].Player));
-
+                    
                     connections[clientId].LastActivity = DateTime.UtcNow;
                 }
             }
@@ -292,8 +292,9 @@ namespace server
         }
         public async Task DisconnectClient(string clientId, string reason = "Disconnected by server")
         {
-            if (connections.TryGetValue(clientId, out var con))
+            if (connections.TryGetValue(clientId, out var con) && !con.Disconnecting)
             {
+                con.Disconnecting = true;
                 Console.Warn($"Client disconnected ({clientId}), reason {reason}");
                 await con.Socket.CloseAsync(WebSocketCloseStatus.NormalClosure, reason, CancellationToken.None);
                 connections.TryRemove(clientId, out _);
@@ -370,6 +371,9 @@ namespace server
                     {
                         var p = c.Value.Player;
 
+                        if (c.Value.Disconnecting)
+                            continue;
+
                         if (p.DirtyMovement)
                             entities.Add(new
                             {
@@ -423,6 +427,7 @@ namespace server
         public string SessionKey = sessionKey;
         public PlayerClient Player = player;
         public IPAddress IP = ip;
+        public bool Disconnecting = false;
 
         public DateTime LastActivity = lastActivity;
 
@@ -431,7 +436,7 @@ namespace server
         /// This is used to avoid C# complaining about more than one concurrent send tasks happening at a time
         public async Task SendSafely(byte[] data, WebSocketMessageType type = WebSocketMessageType.Text, bool close = true)
         {
-            if (Socket.State != WebSocketState.Open)
+            if (Socket.State != WebSocketState.Open || Disconnecting)
                 return;
 
             // Wait if we're already sending a message

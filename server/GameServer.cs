@@ -37,8 +37,7 @@ namespace server
             {
                 try
                 {
-
-                    if ((data.Player.LastChunkRequest - DateTime.Now).TotalMilliseconds > Config.MinChunkInterval)
+                    if ((DateTime.UtcNow - data.Player.LastChunkRequest).TotalMilliseconds < Config.MinChunkInterval)
                         throw new Exception("Too frequent chunk requests!");
 
                     var playerChunkId = World.GetChunkId(data.Player.Position.X);
@@ -48,6 +47,7 @@ namespace server
                         // To prevent the player from getting chunks too far way we limit the number of chunks that could be sent
                         if (Math.Abs(id - playerChunkId) <= Config.MaxChunkDistanceServe)
                         {
+
                             if (!TryToServeChunk(id, true, out var bytes))
                                 throw new Exception("Failed to generate or serve the requested chunk!");
 
@@ -145,15 +145,18 @@ namespace server
                 }
                 finally
                 {
-                    data.Player.LastChunkRequest = DateTime.Now;
+                    data.Player.LastChunkRequest = DateTime.UtcNow;
                 }
             });
             server.AttachPacketHandler("playerMovement", async data =>
             {
                 try
                 {
-                    if (DateTime.UtcNow - data.Player.LastMovementPacket < TimeSpan.FromMilliseconds(Config.MinPlayerPacketInterval))
+                    var delay = (DateTime.UtcNow - data.Player.LastMovementPacket).TotalMilliseconds;
+                    if (delay < Config.MinPlayerPacketInterval)
+                    {
                         throw new MovementPacketException("Too many movement packets sent!");
+                    }
 
                     if (data.Payload.TryGetFloat("x", out var x) && data.Payload.TryGetFloat("y", out var y))
                     {
@@ -173,6 +176,7 @@ namespace server
                             if (data.Player.InTiles > 4)
                             {
                                 data.Player.Position = data.Player.LastGoodPos;
+                                data.Player.InTiles = 0;
                                 throw new MovementPacketException($"Player tried to move inside tiles!");
                             }
                         }
@@ -182,11 +186,10 @@ namespace server
                             data.Player.LastGoodPos = attemptedPos;
                         }
 
+                        data.Player.DirtyMovement = true;
                         data.Player.Position = attemptedPos;
                         data.Player.savedState.x = x;
                         data.Player.savedState.y = y;
-                        data.Player.LastMovementPacket = DateTime.UtcNow;
-                        data.Player.DirtyMovement = true;
                     }
                     else
                         throw new MovementPacketException("Invalid position update packet format!");
@@ -207,6 +210,10 @@ namespace server
                 catch (Exception ex)
                 {
                     await server.SendError(data.ClientId, ex.Message);
+                }
+                finally
+                {
+                    data.Player.LastMovementPacket = DateTime.UtcNow;
                 }
             });
             server.AttachPacketHandler("tileModify", async data =>
@@ -244,6 +251,19 @@ namespace server
             {
                 try
                 {
+                    if (DateTime.UtcNow - data.Player.LastChatPacket > TimeSpan.FromMilliseconds(Config.MaxSpamTime))
+                        data.Player.SpammedMessages++;
+                    else
+                        data.Player.SpammedMessages = 0;
+
+                    if (data.Player.SpammedMessages > Config.MaxSpammedAtOnce)
+                    {
+                        await server.DisconnectClient(data.ClientId, "Spamming is not enabled on this server!");
+                        return;
+                    }
+
+                    data.Player.LastChatPacket = DateTime.UtcNow;
+
                     if (data.Payload.TryGetString("message", out var msg) && msg.Length > 0 && msg.Length < 256)
                         await SendChatMessage($"{data.Player.PlayerName}: {msg}");
                     else

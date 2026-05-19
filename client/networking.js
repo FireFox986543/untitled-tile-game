@@ -213,6 +213,7 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
                 console.warn('Received movement update packet: ' + data.reason);
                 scene.player.safeTeleport(data.x, data.y);
                 scene.player.velocity = Vector2.zero;
+                scene.player.lastMovementPacket = scene.gameTime;
                 break;
             case 'playerConnected':
                 console.log(`Player connected: ${data.id}, ${data.playerName} at ${data.x} ${data.y}`)
@@ -268,6 +269,8 @@ function createMultiConnection(ip, preferredName, onConnected, onFail, port = DE
 
                 console.log('Received chat: ' + data.message);
                 break;
+            case 'error':
+                console.error('Received Error: ' + data.message);
             default:
                 break;
         }

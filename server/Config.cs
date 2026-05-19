@@ -14,6 +14,9 @@ namespace server
         public static float MaxPlayerMovementHorizontal = 0.6f;
         public static float MinPlayerPacketInterval = 60; // In milliseconds
 
+        public static float MaxSpamTime = 500; // In ms
+        public static int MaxSpammedAtOnce = 5;
+
         public static bool BreakingEnabled = true;
     }
 }

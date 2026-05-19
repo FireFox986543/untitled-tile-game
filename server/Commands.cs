@@ -5,8 +5,6 @@ namespace server
 {
     public static partial class Commands
     {
-        public static GameServer server { private get; set; }
-
         public static async Task Execute(string input)
         {
             try
@@ -30,7 +28,7 @@ namespace server
                         if (!Config.SavingEnabled)
                             throw new Exception("Saving is disabled!");
 
-                        server.SaveWorld();
+                        Program.gameServer.SaveWorld();
                         break;
                     case "echo":
                         if (args != null)
@@ -43,14 +41,14 @@ namespace server
                         var cl = args[0];
                         var rs = arL == 1 ? "Kicked by operator." : string.Join(" ", args[1..]);
 
-                        if (await server.TryToKick(cl, rs))
+                        if (await Program.gameServer.TryToKick(cl, rs))
                             Console.Warn("Kicked player.");
                         else
                             throw new Exception("Failed to kick player");
 
                         break;
                     case "ls":
-                        var c = server.ClientConnections;
+                        var c = Program.gameServer.ClientConnections;
 
                         if (c.IsEmpty)
                         {
@@ -73,7 +71,7 @@ namespace server
                         var x = float.Parse(args[1]);
                         var y = float.Parse(args[2]);
 
-                        await server.Teleport(pla, new(x, y));
+                        await Program.gameServer.Teleport(pla, new(x, y));
 
                         break;
                     case "world":
@@ -90,7 +88,7 @@ namespace server
 
                                 int chunkId = int.Parse(args[1]);
 
-                                server.world.AddChunk(Worldgen.GenerateSimpleChunk(chunkId));
+                                Program.gameServer.world.AddChunk(Worldgen.GenerateSimpleChunk(chunkId));
                                 Console.WriteLine("Generated chunk " + chunkId);
                                 break;
                             case "del":
@@ -99,7 +97,7 @@ namespace server
 
                                 chunkId = int.Parse(args[1]);
 
-                                if (server.world.chunks.Remove(chunkId, out _))
+                                if (Program.gameServer.world.chunks.Remove(chunkId, out _))
                                     Console.WriteLine("Removed chunk " + chunkId);
                                 else
                                     throw new Exception("Failed to remove chunk " + chunkId);
@@ -128,7 +126,7 @@ namespace server
                         if (arL == 0 || args == null)
                             throw new Exception("Atleast one argument is required!");
 
-                        await server.SendChatMessage(string.Join(" ", args[0..]));
+                        await Program.gameServer.SendChatMessage(string.Join(" ", args[0..]));
                         break;
                     case "exit":
                         Environment.Exit(0);
